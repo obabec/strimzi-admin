@@ -29,4 +29,5 @@ COPY kafka-admin/target/kafka-admin-${strimzi_admin_version}-fat.jar ./
 COPY docker/run.sh ./
 
 
-ENTRYPOINT ["/usr/bin/tini", "-w", "-e", "143", "--", "sh", "-c", "/opt/strimzi/run.sh "]
+ENTRYPOINT ["/usr/bin/tini", "-w", "-e", "143", "--", "sh", "-c"]
+CMD ["/opt/strimzi/run.sh"]
