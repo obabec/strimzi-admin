@@ -32,7 +32,7 @@ public class AdminDeploymentManager {
                 .withExposedPorts(new ExposedPort(8080))
                 .withHostConfig(new HostConfig()
                         .withPortBindings(portBind))
-                .withCmd( "/opt/strimzi/run.sh -e KAFKA_ADMIN_BOOTSTRAP_SERVERS='" + kafkaIP + ":9092' -e KAFKA_ADMIN_OAUTH_ENABLED='false'").exec();
+                .withCmd("/opt/strimzi/run.sh -e KAFKA_ADMIN_BOOTSTRAP_SERVERS='" + kafkaIP + ":9092' -e KAFKA_ADMIN_OAUTH_ENABLED='false'").exec();
         adminContId = contResp.getId();
         client.startContainerCmd(contResp.getId()).exec();
         client.connectToNetworkCmd().withNetworkId(networkId).withContainerId(contResp.getId()).exec();
