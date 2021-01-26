@@ -14,6 +14,17 @@ import java.util.Set;
 
 public class ModelDeserializer {
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    public <T> T deserializeResponse(Buffer responseBuffer, Class<T> clazz) {
+        T deserialized = null;
+        try {
+            deserialized = MAPPER.readValue(responseBuffer.toString(), clazz);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return deserialized;
+    }
+
     public Set<String> getNames(Buffer responseBuffer) {
         Set<String> names = null;
         try {
@@ -26,6 +37,14 @@ public class ModelDeserializer {
             e.printStackTrace();
         }
 
+        return names;
+    }
+
+    public Set<String> getNames(Types.TopicList topicList) {
+        Set<String> names = new HashSet<>();
+        for (Types.Topic topic : topicList.getItems()) {
+            names.add(topic.getName());
+        }
         return names;
     }
 }

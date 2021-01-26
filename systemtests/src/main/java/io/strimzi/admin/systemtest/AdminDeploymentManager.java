@@ -51,7 +51,7 @@ public class AdminDeploymentManager {
         }
     }
 
-    public void deployAdminContainer(String networkId, String kafkaIP) throws TimeoutException, InterruptedException {
+    public void deployAdminContainer(String networkId, String kafkaIP) throws Exception {
         ExposedPort adminPort = ExposedPort.tcp(8080);
         Ports portBind = new Ports();
         portBind.bind(adminPort, Ports.Binding.bindPort(8080));
