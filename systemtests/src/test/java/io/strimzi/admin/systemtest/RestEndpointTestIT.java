@@ -9,18 +9,13 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientResponse;
 import io.vertx.core.http.HttpMethod;
-import io.vertx.ext.web.client.HttpResponse;
-import io.vertx.ext.web.client.WebClient;
-import io.vertx.ext.web.client.predicate.ResponsePredicate;
-import io.vertx.ext.web.codec.BodyCodec;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
-import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.TopicDescription;
-import org.apache.kafka.common.protocol.types.Field;
+import org.apache.kafka.common.config.ConfigResource;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.AfterAll;
@@ -34,11 +29,9 @@ import org.testcontainers.utility.DockerImageName;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Callable;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -97,7 +90,7 @@ public class RestEndpointTestIT {
         kafkaClient.createTopics(Arrays.asList(
                 new NewTopic("test-topic1", 1, (short) 1),
                 new NewTopic("test-topic2", 1, (short) 1)
-                ));
+        ));
         HttpClient client = vertx.createHttpClient();
         client.request(HttpMethod.GET, 8080, "localhost", "/rest/topicList")
                 .compose(req -> req.send().onSuccess(response -> {
@@ -150,10 +143,10 @@ public class RestEndpointTestIT {
         vertx.createHttpClient().request(HttpMethod.POST, 8080, "localhost", "/rest/createTopic")
                 .compose(req -> req.putHeader("content-type", "application/json")
                         .send(MODEL_DESERIALIZER.serializeBody(topic)).onSuccess(response -> {
-                    if (response.statusCode() != 200) {
-                        testContext.failNow("Status code " + response.statusCode() + " is not correct");
-                    }
-                }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                            if (response.statusCode() != 200) {
+                                testContext.failNow("Status code " + response.statusCode() + " is not correct");
+                            }
+                        }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
                 .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
                     DynamicWait.waitForTopicExists(TOPIC_NAME, kafkaClient);
                     TopicDescription description = kafkaClient.describeTopics(Collections.singleton(TOPIC_NAME))
@@ -219,10 +212,10 @@ public class RestEndpointTestIT {
     @Test
     void testTopicDeleteSingle(Vertx vertx, VertxTestContext testContext) throws Exception {
         final String TOPIC_NAME = "test-topic4";
-        String query = "/rest/deleteTopics?names="+TOPIC_NAME;
+        String query = "/rest/deleteTopics?names=" + TOPIC_NAME;
 
         kafkaClient.createTopics(Collections.singletonList(
-            new NewTopic(TOPIC_NAME, 2, (short) 1)
+                new NewTopic(TOPIC_NAME, 2, (short) 1)
         ));
         DynamicWait.waitForTopicExists(TOPIC_NAME, kafkaClient);
         vertx.createHttpClient().request(HttpMethod.DELETE, 8080, "localhost", query)
@@ -263,5 +256,51 @@ public class RestEndpointTestIT {
                 })));
     }
 
+    @Test
+    void testTopicDeleteNotExisting(Vertx vertx, VertxTestContext testContext) throws Exception {
+        final String TOPIC_NAME = "test-topic-non-existing";
+        String query = "/rest/deleteTopics?names=" + TOPIC_NAME;
+        vertx.createHttpClient().request(HttpMethod.DELETE, 8080, "localhost", query)
+                .compose(req -> req.putHeader("content-type", "application/json")
+                        .send().onSuccess(response -> {
+                            if (response.statusCode() != 500) {
+                                testContext.failNow("Status code " + response.statusCode() + " is not correct");
+                            }
+                            testContext.completeNow();
+                        }).onFailure(testContext::failNow).compose(HttpClientResponse::body));
+    }
+
+    @Test
+    void testUpdateTopic(Vertx vertx, VertxTestContext testContext) {
+        final String TOPIC_NAME = "test-topic7";
+        final String CONFIG_KEY = "min.insync.replicas";
+        Types.Topic topic1 = new Types.Topic();
+        topic1.setName(TOPIC_NAME);
+        Types.ConfigEntry conf = new Types.ConfigEntry();
+        conf.setKey(CONFIG_KEY);
+        conf.setValue("2");
+        topic1.setConfig(Collections.singletonList(conf));
+
+        kafkaClient.createTopics(Collections.singletonList(
+                new NewTopic(TOPIC_NAME, 1, (short) 1)
+        ));
+
+        vertx.createHttpClient().request(HttpMethod.POST, 8080, "localhost", "/rest/updateTopic")
+                .compose(req -> req.putHeader("content-type", "application/json")
+                        .send(MODEL_DESERIALIZER.serializeBody(topic1)).onSuccess(response -> {
+                            if (response.statusCode() != 200) {
+                                testContext.failNow("Status code " + response.statusCode() + " is not correct");
+                            }
+                        }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    DynamicWait.waitForTopicExists(TOPIC_NAME, kafkaClient);
+                    ConfigResource resource = new ConfigResource(org.apache.kafka.common.config.ConfigResource.Type.TOPIC,
+                            TOPIC_NAME);
+                    String configVal = kafkaClient.describeConfigs(Collections.singletonList(resource))
+                            .all().get().get(resource).get("min.insync.replicas").value();
+                    assertThat(configVal).isEqualTo("2");
+                    testContext.completeNow();
+                })));
 
     }
+}

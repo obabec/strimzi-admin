@@ -4,6 +4,7 @@
  */
 package io.strimzi.admin.systemtest;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.strimzi.admin.kafka.admin.model.Types;
@@ -17,6 +18,10 @@ import java.util.Set;
 
 public class ModelDeserializer {
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    public ModelDeserializer() {
+        MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+    }
 
     public <T> T deserializeResponse(Buffer responseBuffer, Class<T> clazz) {
         T deserialized = null;
