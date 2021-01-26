@@ -19,6 +19,7 @@ import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.protocol.types.Field;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +34,8 @@ import org.testcontainers.utility.DockerImageName;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -111,20 +114,12 @@ public class RestEndpointTestIT {
 
     @Test
     void describeSingleTopic(Vertx vertx, VertxTestContext testContext) throws Exception {
-        String topicName = "test-topic1";
+        final String TOPIC_NAME = "test-topic1";
         kafkaClient.createTopics(Collections.singletonList(
-                new NewTopic(topicName, 2, (short) 1)
+                new NewTopic(TOPIC_NAME, 2, (short) 1)
         ));
 
-        DynamicWait.waitFor(new Callable<Boolean>() {
-            @Override
-            public Boolean call() throws Exception {
-                if (kafkaClient.listTopics().names().get().contains(topicName)) {
-                    return Boolean.TRUE;
-                }
-                return Boolean.FALSE;
-            }
-        }, Boolean.TRUE, 10);
+        DynamicWait.waitForTopicExists(TOPIC_NAME, kafkaClient);
 
         String queryReq = "/rest/topic?name=test-topic1";
         vertx.createHttpClient().request(HttpMethod.GET, 8080, "localhost", queryReq)
@@ -140,6 +135,133 @@ public class RestEndpointTestIT {
                 })));
     }
 
+    @Test
+    void testCreateTopic(Vertx vertx, VertxTestContext testContext) {
+        final String TOPIC_NAME = "test-topic3";
+        Types.NewTopic topic = new Types.NewTopic();
+        topic.setName(TOPIC_NAME);
+        topic.setNumPartitions(3);
+        topic.setReplicationFactor(1);
+        Types.NewTopicConfigEntry config = new Types.NewTopicConfigEntry();
+        config.setKey("min.insync.replicas");
+        config.setValue("1");
+        topic.setConfig(Collections.singletonList(config));
+
+        vertx.createHttpClient().request(HttpMethod.POST, 8080, "localhost", "/rest/createTopic")
+                .compose(req -> req.putHeader("content-type", "application/json")
+                        .send(MODEL_DESERIALIZER.serializeBody(topic)).onSuccess(response -> {
+                    if (response.statusCode() != 200) {
+                        testContext.failNow("Status code " + response.statusCode() + " is not correct");
+                    }
+                }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    DynamicWait.waitForTopicExists(TOPIC_NAME, kafkaClient);
+                    TopicDescription description = kafkaClient.describeTopics(Collections.singleton(TOPIC_NAME))
+                            .all().get().get(TOPIC_NAME);
+                    assertThat(description.isInternal()).isEqualTo(false);
+                    assertThat(description.partitions().size()).isEqualTo(3);
+                    testContext.completeNow();
+                })));
+
+    }
+
+    @Test
+    void testCreateFaultTopic(Vertx vertx, VertxTestContext testContext) {
+        final String TOPIC_NAME = "test-topic-fail";
+        Types.NewTopic topic = new Types.NewTopic();
+        topic.setName(TOPIC_NAME);
+        topic.setNumPartitions(3);
+        topic.setReplicationFactor(4);
+        Types.NewTopicConfigEntry config = new Types.NewTopicConfigEntry();
+        config.setKey("min.insync.replicas");
+        config.setValue("1");
+        topic.setConfig(Collections.singletonList(config));
+
+        vertx.createHttpClient().request(HttpMethod.POST, 8080, "localhost", "/rest/createTopic")
+                .compose(req -> req.putHeader("content-type", "application/json")
+                        .send(MODEL_DESERIALIZER.serializeBody(topic)).onSuccess(response -> {
+                            if (response.statusCode() != 500) {
+                                testContext.failNow("Status code " + response.statusCode() + " is not correct");
+                            }
+                        }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    assertThat(kafkaClient.listTopics().names().get()).doesNotContain(TOPIC_NAME);
+                    testContext.completeNow();
+                })));
+    }
+
+    @Test
+    void testCreateDuplicatedTopic(Vertx vertx, VertxTestContext testContext) throws Exception {
+        final String TOPIC_NAME = "test-topic-dupl";
+        Types.NewTopic topic = new Types.NewTopic();
+        topic.setName(TOPIC_NAME);
+        topic.setNumPartitions(2);
+        topic.setReplicationFactor(1);
+        Types.NewTopicConfigEntry config = new Types.NewTopicConfigEntry();
+        config.setKey("min.insync.replicas");
+        config.setValue("1");
+        topic.setConfig(Collections.singletonList(config));
+
+        kafkaClient.createTopics(Collections.singletonList(
+                new NewTopic(TOPIC_NAME, 2, (short) 1)
+        ));
+        DynamicWait.waitForTopicExists(TOPIC_NAME, kafkaClient);
+        vertx.createHttpClient().request(HttpMethod.POST, 8080, "localhost", "/rest/createTopic")
+                .compose(req -> req.putHeader("content-type", "application/json")
+                        .send(MODEL_DESERIALIZER.serializeBody(topic)).onSuccess(response -> {
+                            if (response.statusCode() != 500) {
+                                testContext.failNow("Status code " + response.statusCode() + " is not correct");
+                            }
+                            testContext.completeNow();
+                        }).onFailure(testContext::failNow).compose(HttpClientResponse::body));
+    }
+
+    @Test
+    void testTopicDeleteSingle(Vertx vertx, VertxTestContext testContext) throws Exception {
+        final String TOPIC_NAME = "test-topic4";
+        String query = "/rest/deleteTopics?names="+TOPIC_NAME;
+
+        kafkaClient.createTopics(Collections.singletonList(
+            new NewTopic(TOPIC_NAME, 2, (short) 1)
+        ));
+        DynamicWait.waitForTopicExists(TOPIC_NAME, kafkaClient);
+        vertx.createHttpClient().request(HttpMethod.DELETE, 8080, "localhost", query)
+                .compose(req -> req.putHeader("content-type", "application/json")
+                        .send().onSuccess(response -> {
+                            if (response.statusCode() != 200) {
+                                testContext.failNow("Status code " + response.statusCode() + " is not correct");
+                            }
+                        }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    DynamicWait.waitForTopicToBeDeleted(TOPIC_NAME, kafkaClient);
+                    assertThat(kafkaClient.listTopics().names().get()).doesNotContain(TOPIC_NAME);
+                    testContext.completeNow();
+                })));
+    }
+
+    @Test
+    void testTopicDeleteMultiple(Vertx vertx, VertxTestContext testContext) throws Exception {
+        final List<String> TOPIC_NAMES = Arrays.asList("test-topic5", "test-topic6", "test-topic7");
+        String query = "/rest/deleteTopics?names=" + String.join(",", TOPIC_NAMES);
+        kafkaClient.createTopics(Arrays.asList(
+                new NewTopic(TOPIC_NAMES.get(0), 2, (short) 1),
+                new NewTopic(TOPIC_NAMES.get(1), 2, (short) 1),
+                new NewTopic(TOPIC_NAMES.get(2), 2, (short) 1)
+        ));
+        DynamicWait.waitForTopicsExists(TOPIC_NAMES, kafkaClient);
+        vertx.createHttpClient().request(HttpMethod.DELETE, 8080, "localhost", query)
+                .compose(req -> req.putHeader("content-type", "application/json")
+                        .send().onSuccess(response -> {
+                            if (response.statusCode() != 200) {
+                                testContext.failNow("Status code " + response.statusCode() + " is not correct");
+                            }
+                        }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    DynamicWait.waitForTopicsToBeDeleted(TOPIC_NAMES, kafkaClient);
+                    assertThat(kafkaClient.listTopics().names().get()).doesNotContainAnyElementsOf(TOPIC_NAMES);
+                    testContext.completeNow();
+                })));
+    }
 
 
-}
+    }
