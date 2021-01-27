@@ -1,12 +1,8 @@
 package io.strimzi.admin.systemtest;
 
-import io.vertx.core.Vertx;
 import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.KafkaAdminClient;
 
 import java.util.Collection;
-import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -28,50 +24,38 @@ public class DynamicWait {
     }
 
     public static void waitForTopicExists(String topicName, AdminClient kafkaClient) throws Exception {
-        waitFor(new Callable<Boolean>() {
-            @Override
-            public Boolean call() throws Exception {
-                if (kafkaClient.listTopics().names().get().contains(topicName)) {
-                    return Boolean.TRUE;
-                }
-                return Boolean.FALSE;
+        waitFor(() -> {
+            if (kafkaClient.listTopics().names().get().contains(topicName)) {
+                return Boolean.TRUE;
             }
+            return Boolean.FALSE;
         }, Boolean.TRUE, 10);
     }
 
     public static void waitForTopicsExists(Collection<String> topicNames, AdminClient kafkaClient) throws Exception {
-        waitFor(new Callable<Boolean>() {
-            @Override
-            public Boolean call() throws Exception {
-                if (kafkaClient.listTopics().names().get().containsAll(topicNames)) {
-                    return Boolean.TRUE;
-                }
-                return Boolean.FALSE;
+        waitFor(() -> {
+            if (kafkaClient.listTopics().names().get().containsAll(topicNames)) {
+                return Boolean.TRUE;
             }
+            return Boolean.FALSE;
         }, Boolean.TRUE, 10);
     }
 
     public static void waitForTopicsToBeDeleted(Collection<String> topicNames, AdminClient kafkaClient) throws Exception {
-        waitFor(new Callable<Boolean>() {
-            @Override
-            public Boolean call() throws Exception {
-                if (!kafkaClient.listTopics().names().get().containsAll(topicNames)) {
-                    return Boolean.TRUE;
-                }
-                return Boolean.FALSE;
+        waitFor(() -> {
+            if (!kafkaClient.listTopics().names().get().containsAll(topicNames)) {
+                return Boolean.TRUE;
             }
+            return Boolean.FALSE;
         }, Boolean.TRUE, 10);
     }
 
     public static void waitForTopicToBeDeleted(String topicName, AdminClient kafkaClient) throws Exception {
-        waitFor(new Callable<Boolean>() {
-            @Override
-            public Boolean call() throws Exception {
-                if (!kafkaClient.listTopics().names().get().contains(topicName)) {
-                    return Boolean.TRUE;
-                }
-                return Boolean.FALSE;
+        waitFor(() -> {
+            if (!kafkaClient.listTopics().names().get().contains(topicName)) {
+                return Boolean.TRUE;
             }
+            return Boolean.FALSE;
         }, Boolean.TRUE, 10);
     }
 }

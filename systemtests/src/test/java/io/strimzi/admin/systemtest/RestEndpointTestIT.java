@@ -100,7 +100,7 @@ public class RestEndpointTestIT {
                 }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
                 .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
                     Set<String> actualRestNames = kafkaClient.listTopics().names().get();
-                    assertThat(MODEL_DESERIALIZER.getNames(buffer)).isEqualTo(actualRestNames);
+                    assertThat(MODEL_DESERIALIZER.getNames(buffer)).containsAll(actualRestNames);
                     testContext.completeNow();
                 })));
     }
@@ -126,6 +126,20 @@ public class RestEndpointTestIT {
                     assertThat(topic.getPartitions().size()).isEqualTo(2);
                     testContext.completeNow();
                 })));
+    }
+
+    @Test
+    void describeNonExistingTopic(Vertx vertx, VertxTestContext testContext) throws Exception {
+        final String TOPIC_NAME = "test-non-exist";
+
+        String queryReq = "/rest/topic?name=" + TOPIC_NAME;
+        vertx.createHttpClient().request(HttpMethod.GET, 8080, "localhost", queryReq)
+                .compose(req -> req.send().onSuccess(response -> {
+                    if (response.statusCode() != 500) {
+                        testContext.failNow("Status code not correct");
+                    }
+                    testContext.completeNow();
+                }).onFailure(testContext::failNow));
     }
 
     @Test
@@ -159,6 +173,50 @@ public class RestEndpointTestIT {
     }
 
     @Test
+    void testCreateWithInvJson(Vertx vertx, VertxTestContext testContext) {
+        final String TOPIC_NAME = "test-topic3";
+        Types.NewTopic topic = new Types.NewTopic();
+        topic.setName(TOPIC_NAME);
+        topic.setNumPartitions(3);
+        topic.setReplicationFactor(1);
+        Types.NewTopicConfigEntry config = new Types.NewTopicConfigEntry();
+        config.setKey("min.insync.replicas");
+        config.setValue("1");
+        topic.setConfig(Collections.singletonList(config));
+
+        vertx.createHttpClient().request(HttpMethod.POST, 8080, "localhost", "/rest/createTopic")
+                .compose(req -> req.putHeader("content-type", "application/json")
+                        .send(MODEL_DESERIALIZER.serializeBody(topic) + "{./as}").onSuccess(response -> {
+                            if (response.statusCode() != 500) {
+                                testContext.failNow("Status code " + response.statusCode() + " is not correct");
+                            }
+                            testContext.completeNow();
+                        }).onFailure(testContext::failNow).compose(HttpClientResponse::body));
+    }
+
+    @Test
+    void testCreateTopicWithInvName(Vertx vertx, VertxTestContext testContext) {
+        final String TOPIC_NAME = "testTopic3_9-=";
+        Types.NewTopic topic = new Types.NewTopic();
+        topic.setName(TOPIC_NAME);
+        topic.setNumPartitions(3);
+        topic.setReplicationFactor(1);
+        Types.NewTopicConfigEntry config = new Types.NewTopicConfigEntry();
+        config.setKey("min.insync.replicas");
+        config.setValue("1");
+        topic.setConfig(Collections.singletonList(config));
+
+        vertx.createHttpClient().request(HttpMethod.POST, 8080, "localhost", "/rest/createTopic")
+                .compose(req -> req.putHeader("content-type", "application/json")
+                        .send(MODEL_DESERIALIZER.serializeBody(topic)).onSuccess(response -> {
+                            if (response.statusCode() != 500) {
+                                testContext.failNow("Status code " + response.statusCode() + " is not correct");
+                            }
+                            testContext.completeNow();
+                        }).onFailure(testContext::failNow).compose(HttpClientResponse::body));
+    }
+
+    @Test
     void testCreateFaultTopic(Vertx vertx, VertxTestContext testContext) {
         final String TOPIC_NAME = "test-topic-fail";
         Types.NewTopic topic = new Types.NewTopic();
@@ -182,7 +240,7 @@ public class RestEndpointTestIT {
                     testContext.completeNow();
                 })));
     }
-
+    //todo: OAUTH, kafka down, internal create/delete
     @Test
     void testCreateDuplicatedTopic(Vertx vertx, VertxTestContext testContext) throws Exception {
         final String TOPIC_NAME = "test-topic-dupl";
@@ -257,7 +315,7 @@ public class RestEndpointTestIT {
     }
 
     @Test
-    void testTopicDeleteNotExisting(Vertx vertx, VertxTestContext testContext) throws Exception {
+    void testTopicDeleteNotExisting(Vertx vertx, VertxTestContext testContext) {
         final String TOPIC_NAME = "test-topic-non-existing";
         String query = "/rest/deleteTopics?names=" + TOPIC_NAME;
         vertx.createHttpClient().request(HttpMethod.DELETE, 8080, "localhost", query)
@@ -270,6 +328,7 @@ public class RestEndpointTestIT {
                         }).onFailure(testContext::failNow).compose(HttpClientResponse::body));
     }
 
+    //todo: napr, replica factor
     @Test
     void testUpdateTopic(Vertx vertx, VertxTestContext testContext) {
         final String TOPIC_NAME = "test-topic7";

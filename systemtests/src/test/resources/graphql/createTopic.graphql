@@ -1,0 +1,19 @@
+mutation {
+    createTopic(input: {
+        name: $name,
+        numPartitions: $numPartitions,
+        replicationFactor: $replicaFactor,
+        config: [
+            {
+                key: "min.insync.replicas",
+                value: "1"
+            },
+            {
+                key: "max.message.bytes",
+                value: "1050000"
+            },
+        ]
+    }) {
+        name
+    }
+}

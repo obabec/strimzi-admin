@@ -26,8 +26,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -66,7 +70,7 @@ public class GraphQLEndpointTestIT {
     }
 
     @Test
-    void singleGraphQLTopicListTest(Vertx vertx, VertxTestContext testContext) throws Exception {
+    void topicListAfterCreationQLTest(Vertx vertx, VertxTestContext testContext) throws Exception {
         InputStream iStream = getClass().getResourceAsStream("/graphql/topicList.graphql");
         String payload = GraphqlTemplate.parseGraphql(iStream, null);
         HttpClient client = vertx.createHttpClient();
@@ -83,8 +87,12 @@ public class GraphQLEndpointTestIT {
                 }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
                 .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
                     JsonNode jsonNode = new ObjectMapper().readTree(buffer.toString());
-                    assertThat(jsonNode.get("data").get("topicList").get("items").size()).isEqualTo(3);
+                    Set<String> namesSet = StreamSupport.stream(jsonNode.get("data").get("topicList")
+                            .get("items").spliterator(), false).map(json -> json.get("name").asText()).collect(Collectors.toSet());
+                    Set<String> actualRestNames = kafkaClient.listTopics().names().get();
+                    assertThat(namesSet).containsAll(actualRestNames);
                     testContext.completeNow();
                 })));
     }
+
 }

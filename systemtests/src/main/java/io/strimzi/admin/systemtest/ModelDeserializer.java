@@ -9,10 +9,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.strimzi.admin.kafka.admin.model.Types;
 import io.vertx.core.buffer.Buffer;
-import org.apache.kafka.common.protocol.types.Field;
 
-import java.io.IOException;
-import java.io.StringWriter;
 import java.util.HashSet;
 import java.util.Set;
 
