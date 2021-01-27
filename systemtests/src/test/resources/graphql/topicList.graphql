@@ -1,0 +1,11 @@
+query Topics($filter: String) {
+    topicList(search: $filter) {
+        items {
+            name
+            config {
+                key
+                value
+            }
+        }
+    }
+}
