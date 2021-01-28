@@ -118,6 +118,119 @@ public class GraphQLEndpointTestIT extends TestBase {
                 .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
                     Set<String> actualRestNames = kafkaClient.listTopics().names().get();
                     assertThat(actualRestNames).contains(topic.getName());
+                    assertThat(new ObjectMapper().readTree(buffer.toString()).get("errors").size()).isGreaterThan(0);
+                    testContext.completeNow();
+                })));
+    }
+
+    @Test
+    void testDescribeTopicQL(Vertx vertx, VertxTestContext testContext) throws Exception {
+        InputStream iStream = getClass().getResourceAsStream("/graphql/describeTopic.graphql");
+        ObjectNode variables = new ObjectMapper().createObjectNode();
+        final String topicName = "test-topic";
+        variables.put("name", topicName);
+
+        kafkaClient.createTopics(Collections.singletonList(
+                new NewTopic(topicName, 3, (short) 1)
+        ));
+        DynamicWait.waitForTopicExists(topicName, kafkaClient);
+        String payload = GraphqlTemplate.parseGraphql(iStream, variables);
+        HttpClient client = vertx.createHttpClient();
+        client.request(HttpMethod.POST, 8080, "localhost", "/graphql")
+                .compose(req -> req.send(payload).onSuccess(response -> {
+                    if (response.statusCode() != 200) {
+                        testContext.failNow("Status code not correct");
+                    }
+                }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    assertThat(new ObjectMapper().readTree(buffer.toString()).get("data")
+                            .get("topic").get("partitions").size()).isEqualTo(3);
+                    testContext.completeNow();
+                })));
+    }
+
+    @Test
+    void testDescribeNonExistingTopicQL(Vertx vertx, VertxTestContext testContext) throws Exception {
+        InputStream iStream = getClass().getResourceAsStream("/graphql/describeTopic.graphql");
+        ObjectNode variables = new ObjectMapper().createObjectNode();
+        final String topicName = "test-topic";
+        variables.put("name", topicName);
+
+        String payload = GraphqlTemplate.parseGraphql(iStream, variables);
+        HttpClient client = vertx.createHttpClient();
+        client.request(HttpMethod.POST, 8080, "localhost", "/graphql")
+                .compose(req -> req.send(payload).onSuccess(response -> {
+                    if (response.statusCode() != 200) {
+                        testContext.failNow("Status code not correct");
+                    }
+                }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    assertThat(new ObjectMapper().readTree(buffer.toString()).get("errors").size()).isGreaterThan(0);
+                    testContext.completeNow();
+                })));
+    }
+
+    @Test
+    void testCreateFaultTopicQL(Vertx vertx, VertxTestContext testContext) throws Exception {
+        InputStream iStream = getClass().getResourceAsStream("/graphql/createTopic.graphql");
+        ObjectNode variables = new ObjectMapper().createObjectNode();
+
+        Types.NewTopic topic = new Types.NewTopic();
+        topic.setName("test-topic");
+        topic.setNumPartitions(3);
+        topic.setReplicationFactor(5);
+        Types.NewTopicConfigEntry config = new Types.NewTopicConfigEntry();
+        config.setKey("min.insync.replicas");
+        config.setValue("1");
+        topic.setConfig(Collections.singletonList(config));
+        variables.putObject("input");
+        variables.set("input", new ObjectMapper().valueToTree(topic));
+
+        String payload = GraphqlTemplate.parseGraphql(iStream, variables);
+        HttpClient client = vertx.createHttpClient();
+        client.request(HttpMethod.POST, 8080, "localhost", "/graphql")
+                .compose(req -> req.send(payload).onSuccess(response -> {
+                    if (response.statusCode() != 200) {
+                        testContext.failNow("Status code not correct");
+                    }
+                }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    Set<String> actualRestNames = kafkaClient.listTopics().names().get();
+                    assertThat(actualRestNames).doesNotContain(topic.getName());
+                    assertThat(new ObjectMapper().readTree(buffer.toString()).get("errors").size()).isGreaterThan(0);
+                    testContext.completeNow();
+                })));
+    }
+
+
+    @Test
+    void testCreateTopicWithInvNameQL(Vertx vertx, VertxTestContext testContext) throws Exception {
+        InputStream iStream = getClass().getResourceAsStream("/graphql/createTopic.graphql");
+        ObjectNode variables = new ObjectMapper().createObjectNode();
+
+        Types.NewTopic topic = new Types.NewTopic();
+        topic.setName("testTopic3_9-=");
+        topic.setNumPartitions(3);
+        topic.setReplicationFactor(1);
+        Types.NewTopicConfigEntry config = new Types.NewTopicConfigEntry();
+        config.setKey("min.insync.replicas");
+        config.setValue("1");
+        topic.setConfig(Collections.singletonList(config));
+        variables.putObject("input");
+        variables.set("input", new ObjectMapper().valueToTree(topic));
+
+        String payload = GraphqlTemplate.parseGraphql(iStream, variables);
+        HttpClient client = vertx.createHttpClient();
+        client.request(HttpMethod.POST, 8080, "localhost", "/graphql")
+                .compose(req -> req.send(payload).onSuccess(response -> {
+                    if (response.statusCode() != 200) {
+                        testContext.failNow("Status code not correct");
+                    }
+                }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    Set<String> actualRestNames = kafkaClient.listTopics().names().get();
+                    assertThat(actualRestNames).doesNotContain(topic.getName());
+                    assertThat(new ObjectMapper().readTree(buffer.toString()).get("errors").size()).isGreaterThan(0);
                     testContext.completeNow();
                 })));
     }
@@ -147,6 +260,30 @@ public class GraphQLEndpointTestIT extends TestBase {
                     DynamicWait.waitForTopicToBeDeleted(topicName, kafkaClient);
                     Set<String> actualRestNames = kafkaClient.listTopics().names().get();
                     assertThat(actualRestNames).doesNotContain(topicName);
+                    testContext.completeNow();
+                })));
+    }
+
+    @Test
+    void testDeleteTopicNonExistingQL(Vertx vertx, VertxTestContext testContext) throws Exception {
+        final String topicName = "test-topic2";
+        InputStream iStream = getClass().getResourceAsStream("/graphql/deleteTopic.graphql");
+        ObjectNode variables = new ObjectMapper().createObjectNode();
+
+        variables.putObject("names");
+        variables.set("names", new ObjectMapper().valueToTree(Collections.singletonList(topicName)));
+        String payload = GraphqlTemplate.parseGraphql(iStream, variables);
+        HttpClient client = vertx.createHttpClient();
+        client.request(HttpMethod.POST, 8080, "localhost", "/graphql")
+                .compose(req -> req.send(payload).onSuccess(response -> {
+                    if (response.statusCode() != 200) {
+                        testContext.failNow("Status code not correct");
+                    }
+                }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    Set<String> actualRestNames = kafkaClient.listTopics().names().get();
+                    assertThat(actualRestNames).doesNotContain(topicName);
+                    assertThat(new ObjectMapper().readTree(buffer.toString()).get("errors").size()).isGreaterThan(0);
                     testContext.completeNow();
                 })));
     }
