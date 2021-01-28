@@ -1,3 +1,7 @@
+/*
+ * Copyright Strimzi authors.
+ * License: Apache License 2.0 (see the file LICENSE or http://apache.org/licenses/LICENSE-2.0.html).
+ */
 package io.strimzi.admin.systemtest;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -85,19 +89,19 @@ public class GraphQLEndpointTestIT extends TestBase {
 
     @Test
     void testDeleteTopicQL(Vertx vertx, VertxTestContext testContext) throws Exception {
-        final String TOPIC_NAME = "test-topic2";
+        final String topicName = "test-topic2";
         InputStream iStream = getClass().getResourceAsStream("/graphql/deleteTopic.graphql");
         ObjectNode variables = new ObjectMapper().createObjectNode();
 
         variables.putObject("names");
-        variables.set("names", new ObjectMapper().valueToTree(Collections.singletonList(TOPIC_NAME)));
+        variables.set("names", new ObjectMapper().valueToTree(Collections.singletonList(topicName)));
         String payload = GraphqlTemplate.parseGraphql(iStream, variables);
         HttpClient client = vertx.createHttpClient();
 
         kafkaClient.createTopics(Collections.singletonList(
-                new NewTopic(TOPIC_NAME, 2, (short) 1)
+                new NewTopic(topicName, 2, (short) 1)
         ));
-        DynamicWait.waitForTopicExists(TOPIC_NAME, kafkaClient);
+        DynamicWait.waitForTopicExists(topicName, kafkaClient);
         client.request(HttpMethod.POST, 8080, "localhost", "/graphql")
                 .compose(req -> req.send(payload).onSuccess(response -> {
                     if (response.statusCode() != 200) {
@@ -106,26 +110,26 @@ public class GraphQLEndpointTestIT extends TestBase {
                 }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
                 .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
                     LOGGER.warn("fuck it");
-                    DynamicWait.waitForTopicToBeDeleted(TOPIC_NAME, kafkaClient);
+                    DynamicWait.waitForTopicToBeDeleted(topicName, kafkaClient);
                     Set<String> actualRestNames = kafkaClient.listTopics().names().get();
-                    assertThat(actualRestNames).doesNotContain(TOPIC_NAME);
+                    assertThat(actualRestNames).doesNotContain(topicName);
                     testContext.completeNow();
                 })));
     }
 
     @Test
     void testUpdateTopicQL(Vertx vertx, VertxTestContext testContext) throws Exception {
-        final String TOPIC_NAME = "test-topic-upd";
+        final String topicName = "test-topic-upd";
         InputStream iStream = getClass().getResourceAsStream("/graphql/updateTopic.graphql");
         ObjectNode variables = new ObjectMapper().createObjectNode();
         Types.UpdatedTopic updatedTopic = new Types.UpdatedTopic();
-        updatedTopic.setName(TOPIC_NAME);
+        updatedTopic.setName(topicName);
         Types.NewTopicConfigEntry topicConfigEntry = new Types.NewTopicConfigEntry();
         topicConfigEntry.setKey("max.message.bytes");
         topicConfigEntry.setValue("1041234");
         updatedTopic.setConfig(Collections.singletonList(topicConfigEntry));
         kafkaClient.createTopics(Collections.singletonList(
-                new NewTopic(TOPIC_NAME, 2, (short) 1)
+                new NewTopic(topicName, 2, (short) 1)
         ));
 
         variables.putObject("input");
@@ -133,7 +137,7 @@ public class GraphQLEndpointTestIT extends TestBase {
         String payload = GraphqlTemplate.parseGraphql(iStream, variables);
         HttpClient client = vertx.createHttpClient();
 
-        DynamicWait.waitForTopicExists(TOPIC_NAME, kafkaClient);
+        DynamicWait.waitForTopicExists(topicName, kafkaClient);
         client.request(HttpMethod.POST, 8080, "localhost", "/graphql")
                 .compose(req -> req.send(payload).onSuccess(response -> {
                     if (response.statusCode() != 200) {
@@ -143,7 +147,7 @@ public class GraphQLEndpointTestIT extends TestBase {
                 .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
                     LOGGER.warn("fuck it");
                     ConfigResource resource = new ConfigResource(org.apache.kafka.common.config.ConfigResource.Type.TOPIC,
-                            TOPIC_NAME);
+                            topicName);
                     String configVal = kafkaClient.describeConfigs(Collections.singletonList(resource))
                             .all().get().get(resource).get(topicConfigEntry.getKey()).value();
                     assertThat(configVal).isEqualTo(topicConfigEntry.getValue());

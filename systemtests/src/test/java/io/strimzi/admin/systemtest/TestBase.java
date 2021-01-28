@@ -1,3 +1,7 @@
+/*
+ * Copyright Strimzi authors.
+ * License: Apache License 2.0 (see the file LICENSE or http://apache.org/licenses/LICENSE-2.0.html).
+ */
 package io.strimzi.admin.systemtest;
 
 import io.vertx.junit5.VertxExtension;
@@ -6,7 +10,9 @@ import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
@@ -26,8 +32,8 @@ public class TestBase {
     protected static AdminClient kafkaClient;
     protected static final ModelDeserializer MODEL_DESERIALIZER = new ModelDeserializer();
 
-    @BeforeAll
-    public static void startup() throws Exception {
+    @BeforeEach
+    public void startup() throws Exception {
         network = Network.newNetwork();
         kafka = kafka.withEmbeddedZookeeper().withNetwork(network);
         kafka.start();
@@ -40,8 +46,8 @@ public class TestBase {
         kafkaClient = AdminClient.create(conf);
     }
 
-    @AfterAll
-    public static void teardown() {
+    @AfterEach
+    public void teardown() {
         LOGGER.info("Teardown docker environment");
         kafkaClient.close();
         DEPLOYMENT_MANAGER.teardown();
