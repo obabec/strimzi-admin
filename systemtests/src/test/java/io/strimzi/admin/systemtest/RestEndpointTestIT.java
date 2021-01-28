@@ -9,82 +9,22 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientResponse;
 import io.vertx.core.http.HttpMethod;
-import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.config.ConfigResource;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.testcontainers.containers.KafkaContainer;
-import org.testcontainers.containers.Network;
-import org.testcontainers.utility.DockerImageName;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@ExtendWith(VertxExtension.class)
-public class RestEndpointTestIT {
-    protected static final Logger LOGGER = LogManager.getLogger(RestEndpointTestIT.class);
+public class RestEndpointTestIT extends TestBase {
 
-    public static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:5.4.3"));
-
-    private static Network network;
-    private static final AdminDeploymentManager DEPLOYMENT_MANAGER = new AdminDeploymentManager();
-    private static AdminClient kafkaClient;
-    private static final ModelDeserializer MODEL_DESERIALIZER = new ModelDeserializer();
-
-    @BeforeAll
-    public static void startup() throws Exception {
-        network = Network.newNetwork();
-        kafka = kafka.withEmbeddedZookeeper().withNetwork(network);
-        kafka.start();
-        String kafkaIp = kafka.getContainerInfo().getNetworkSettings().getNetworks()
-                .get(((Network.NetworkImpl) network).getName()).getIpAddress();
-        DEPLOYMENT_MANAGER.deployAdminContainer(network.getId(), kafkaIp);
-        Map<String, Object> conf = new HashMap<>();
-        conf.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
-        conf.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, "5000");
-        kafkaClient = AdminClient.create(conf);
-    }
-
-    @AfterAll
-    public static void teardown() {
-        LOGGER.info("Teardown docker environment");
-        kafkaClient.close();
-        DEPLOYMENT_MANAGER.teardown();
-        kafka.stop();
-        network.close();
-    }
-
-    @Test
-    void singleRestTopicListTest(Vertx vertx, VertxTestContext testContext) {
-        HttpClient client = vertx.createHttpClient();
-        client.request(HttpMethod.GET, 8080, "localhost", "/rest/topicList")
-                .compose(req -> req.send().onSuccess(response -> {
-                    if (response.statusCode() != 200) {
-                        testContext.failNow("Status code not correct");
-                    }
-                }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
-                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
-                    Set<String> actualRestNames = kafkaClient.listTopics().names().get();
-                    assertThat(MODEL_DESERIALIZER.getNames(buffer)).isEqualTo(actualRestNames);
-                    testContext.completeNow();
-                })));
-    }
-
+    //todo: topiclist params test
     @Test
     void topicListAfterCreationTest(Vertx vertx, VertxTestContext testContext) {
         kafkaClient.createTopics(Arrays.asList(
@@ -240,7 +180,7 @@ public class RestEndpointTestIT {
                     testContext.completeNow();
                 })));
     }
-    //todo: OAUTH, kafka down, internal create/delete
+    //todo: OAUTH, Tests with kafka down
     @Test
     void testCreateDuplicatedTopic(Vertx vertx, VertxTestContext testContext) throws Exception {
         final String TOPIC_NAME = "test-topic-dupl";
@@ -328,7 +268,6 @@ public class RestEndpointTestIT {
                         }).onFailure(testContext::failNow).compose(HttpClientResponse::body));
     }
 
-    //todo: napr, replica factor
     @Test
     void testUpdateTopic(Vertx vertx, VertxTestContext testContext) {
         final String TOPIC_NAME = "test-topic7";

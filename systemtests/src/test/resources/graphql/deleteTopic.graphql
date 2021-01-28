@@ -1,0 +1,3 @@
+mutation deleteTopic($names: [String]){
+    deleteTopics(names: $names)
+}
