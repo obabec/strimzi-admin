@@ -1,9 +1,0 @@
-mutation updateTopic($input: UpdatedTopic!){
-    updateTopic(input: $input) {
-        name
-        config {
-            key
-            value
-        }
-    }
-}

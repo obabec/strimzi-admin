@@ -4,6 +4,10 @@
  */
 package io.strimzi.admin.systemtest;
 
+import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.core.DefaultDockerClientConfig;
+import com.github.dockerjava.core.DockerClientBuilder;
+import com.github.dockerjava.core.DockerClientImpl;
 import io.strimzi.admin.kafka.admin.model.Types;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
@@ -14,6 +18,8 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.config.ConfigResource;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -24,7 +30,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class RestEndpointTestIT extends TestBase {
 
-    //todo: topiclist params test
     @Test
     void topicListAfterCreationTest(Vertx vertx, VertxTestContext testContext) {
         kafkaClient.createTopics(Arrays.asList(
@@ -66,6 +71,68 @@ public class RestEndpointTestIT extends TestBase {
     }
 
     @Test
+    void topicListWithFilterNoneTest(Vertx vertx, VertxTestContext testContext) {
+        kafkaClient.createTopics(Arrays.asList(
+                new NewTopic("test-topic1", 1, (short) 1),
+                new NewTopic("test-topic2", 1, (short) 1)
+        ));
+        HttpClient client = vertx.createHttpClient();
+        client.request(HttpMethod.GET, 8080, "localhost", "/rest/topics?filter=zcfsada.*")
+                .compose(req -> req.send().onSuccess(response -> {
+                    if (response.statusCode() != 200) {
+                        testContext.failNow("Status code not correct");
+                    }
+                }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    assertThat(MODEL_DESERIALIZER.getNames(buffer).size()).isEqualTo(0);
+                    testContext.completeNow();
+                })));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 3, 5})
+    void topicListWithLimitTest(int limit, Vertx vertx, VertxTestContext testContext) {
+        kafkaClient.createTopics(Arrays.asList(
+                new NewTopic("test-topic1", 1, (short) 1),
+                new NewTopic("test-topic2", 1, (short) 1)
+        ));
+        HttpClient client = vertx.createHttpClient();
+        client.request(HttpMethod.GET, 8080, "localhost", "/rest/topics?limit=" + limit)
+                .compose(req -> req.send().onSuccess(response -> {
+                    if (response.statusCode() != 200) {
+                        testContext.failNow("Status code not correct");
+                    }
+                }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    assertThat(MODEL_DESERIALIZER.getNames(buffer).size()).isEqualTo(Math.min(limit, 3));
+                    testContext.completeNow();
+                })));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 3, 4})
+    void topicListWithOffsetTest(int offset, Vertx vertx, VertxTestContext testContext) {
+        kafkaClient.createTopics(Arrays.asList(
+                new NewTopic("test-topic1", 1, (short) 1),
+                new NewTopic("test-topic2", 1, (short) 1)
+        ));
+        HttpClient client = vertx.createHttpClient();
+        client.request(HttpMethod.GET, 8080, "localhost", "/rest/topics?offset=" + offset)
+                .compose(req -> req.send().onSuccess(response -> {
+                    if ((response.statusCode() != 200 && offset != 4)
+                            || (response.statusCode() != 400 && offset == 4)) {
+                        testContext.failNow("Status code not correct");
+                    }
+                }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    if (offset != 4) {
+                        assertThat(MODEL_DESERIALIZER.getNames(buffer).size()).isEqualTo(3 - offset);
+                    }
+                    testContext.completeNow();
+                })));
+    }
+
+    @Test
     void describeSingleTopic(Vertx vertx, VertxTestContext testContext) throws Exception {
         final String topicName = "test-topic1";
         kafkaClient.createTopics(Collections.singletonList(
@@ -86,6 +153,22 @@ public class RestEndpointTestIT extends TestBase {
                     assertThat(topic.getPartitions().size()).isEqualTo(2);
                     testContext.completeNow();
                 })));
+    }
+
+    @Test
+    void describeSingleTopicWithKafkaDown(Vertx vertx, VertxTestContext testContext) throws Exception {
+        final String topicName = "test-topic1";
+        String queryReq = "/rest/topics/" + topicName;
+        DockerClient client = DEPLOYMENT_MANAGER.getClient();
+        client.stopContainerCmd(kafka.getContainerId()).exec();
+
+        vertx.createHttpClient().request(HttpMethod.GET, 8080, "localhost", queryReq)
+                .compose(req -> req.send().onSuccess(response -> {
+                    if (response.statusCode() != 500) {
+                        testContext.failNow("Status code not correct");
+                    }
+                    testContext.completeNow();
+                }).onFailure(testContext::failNow));
     }
 
     @Test
@@ -249,30 +332,6 @@ public class RestEndpointTestIT extends TestBase {
                     testContext.completeNow();
                 })));
     }
-
-  /*  @Test
-    void testTopicDeleteMultiple(Vertx vertx, VertxTestContext testContext) throws Exception {
-        final List<String> topicNameS = Arrays.asList("test-topic5", "test-topic6", "test-topic7");
-        String query = "/rest/deleteTopics?names=" + String.join(",", topicNameS);
-        kafkaClient.createTopics(Arrays.asList(
-                new NewTopic(topicNameS.get(0), 2, (short) 1),
-                new NewTopic(topicNameS.get(1), 2, (short) 1),
-                new NewTopic(topicNameS.get(2), 2, (short) 1)
-        ));
-        DynamicWait.waitForTopicsExists(topicNameS, kafkaClient);
-        vertx.createHttpClient().request(HttpMethod.DELETE, 8080, "localhost", query)
-                .compose(req -> req.putHeader("content-type", "application/json")
-                        .send().onSuccess(response -> {
-                            if (response.statusCode() != 200) {
-                                testContext.failNow("Status code " + response.statusCode() + " is not correct");
-                            }
-                        }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
-                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
-                    DynamicWait.waitForTopicsToBeDeleted(topicNameS, kafkaClient);
-                    assertThat(kafkaClient.listTopics().names().get()).doesNotContainAnyElementsOf(topicNameS);
-                    testContext.completeNow();
-                })));
-    }*/
 
     @Test
     void testTopicDeleteNotExisting(Vertx vertx, VertxTestContext testContext) {

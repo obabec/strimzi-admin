@@ -1,5 +1,0 @@
-mutation createTopic($input: NewTopic!) {
-    createTopic(input: $input) {
-        name
-    }
-}

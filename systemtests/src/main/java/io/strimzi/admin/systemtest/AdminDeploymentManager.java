@@ -71,4 +71,12 @@ public class AdminDeploymentManager {
         client.stopContainerCmd(adminContId).exec();
         client.removeContainerCmd(adminContId).exec();
     }
+
+    public DockerClient getClient() {
+        return client;
+    }
+
+    public String getAdminContId() {
+        return adminContId;
+    }
 }
