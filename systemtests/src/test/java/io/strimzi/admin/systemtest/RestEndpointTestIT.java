@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class RestEndpointTestIT extends TestBase {
 
     @Test
-    void topicListAfterCreationTest(Vertx vertx, VertxTestContext testContext) {
+    void testTopicListAfterCreation(Vertx vertx, VertxTestContext testContext) {
         kafkaClient.createTopics(Arrays.asList(
                 new NewTopic("test-topic1", 1, (short) 1),
                 new NewTopic("test-topic2", 1, (short) 1)
@@ -39,7 +39,7 @@ public class RestEndpointTestIT extends TestBase {
         HttpClient client = vertx.createHttpClient();
         client.request(HttpMethod.GET, 8080, "localhost", "/rest/topics")
                 .compose(req -> req.send().onSuccess(response -> {
-                    if (response.statusCode() != 200) {
+                    if (response.statusCode() !=  ReturnCodes.SUCC.code) {
                         testContext.failNow("Status code not correct");
                     }
                 }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
@@ -51,7 +51,19 @@ public class RestEndpointTestIT extends TestBase {
     }
 
     @Test
-    void topicListWithFilterTest(Vertx vertx, VertxTestContext testContext) {
+    void testTopicListWithKafkaDown(Vertx vertx, VertxTestContext testContext) {
+        HttpClient client = vertx.createHttpClient();
+        DEPLOYMENT_MANAGER.getClient().stopContainerCmd(kafka.getContainerId()).exec();
+        client.request(HttpMethod.GET, 8080, "localhost", "/rest/topics")
+                .compose(req -> req.send().onSuccess(response -> {
+                    if (response.statusCode() !=  ReturnCodes.KAFKADOWN.code) {
+                        testContext.failNow("Status code not correct");
+                    }
+                }).onFailure(testContext::failNow).compose(HttpClientResponse::body));
+    }
+
+    @Test
+    void testTopicListWithFilter(Vertx vertx, VertxTestContext testContext) {
         kafkaClient.createTopics(Arrays.asList(
                 new NewTopic("test-topic1", 1, (short) 1),
                 new NewTopic("test-topic2", 1, (short) 1)
@@ -59,7 +71,7 @@ public class RestEndpointTestIT extends TestBase {
         HttpClient client = vertx.createHttpClient();
         client.request(HttpMethod.GET, 8080, "localhost", "/rest/topics?filter=test-topic.*")
                 .compose(req -> req.send().onSuccess(response -> {
-                    if (response.statusCode() != 200) {
+                    if (response.statusCode() !=  ReturnCodes.SUCC.code) {
                         testContext.failNow("Status code not correct");
                     }
                 }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
@@ -71,7 +83,7 @@ public class RestEndpointTestIT extends TestBase {
     }
 
     @Test
-    void topicListWithFilterNoneTest(Vertx vertx, VertxTestContext testContext) {
+    void testTopicListWithFilterNone(Vertx vertx, VertxTestContext testContext) {
         kafkaClient.createTopics(Arrays.asList(
                 new NewTopic("test-topic1", 1, (short) 1),
                 new NewTopic("test-topic2", 1, (short) 1)
@@ -79,7 +91,7 @@ public class RestEndpointTestIT extends TestBase {
         HttpClient client = vertx.createHttpClient();
         client.request(HttpMethod.GET, 8080, "localhost", "/rest/topics?filter=zcfsada.*")
                 .compose(req -> req.send().onSuccess(response -> {
-                    if (response.statusCode() != 200) {
+                    if (response.statusCode() !=  ReturnCodes.SUCC.code) {
                         testContext.failNow("Status code not correct");
                     }
                 }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
@@ -91,7 +103,7 @@ public class RestEndpointTestIT extends TestBase {
 
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 3, 5})
-    void topicListWithLimitTest(int limit, Vertx vertx, VertxTestContext testContext) {
+    void testTopicListWithLimit(int limit, Vertx vertx, VertxTestContext testContext) {
         kafkaClient.createTopics(Arrays.asList(
                 new NewTopic("test-topic1", 1, (short) 1),
                 new NewTopic("test-topic2", 1, (short) 1)
@@ -99,7 +111,7 @@ public class RestEndpointTestIT extends TestBase {
         HttpClient client = vertx.createHttpClient();
         client.request(HttpMethod.GET, 8080, "localhost", "/rest/topics?limit=" + limit)
                 .compose(req -> req.send().onSuccess(response -> {
-                    if (response.statusCode() != 200) {
+                    if (response.statusCode() !=  ReturnCodes.SUCC.code) {
                         testContext.failNow("Status code not correct");
                     }
                 }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
@@ -111,7 +123,7 @@ public class RestEndpointTestIT extends TestBase {
 
     @ParameterizedTest
     @ValueSource(ints = {0, 1, 3, 4})
-    void topicListWithOffsetTest(int offset, Vertx vertx, VertxTestContext testContext) {
+    void testTopicListWithOffset(int offset, Vertx vertx, VertxTestContext testContext) {
         kafkaClient.createTopics(Arrays.asList(
                 new NewTopic("test-topic1", 1, (short) 1),
                 new NewTopic("test-topic2", 1, (short) 1)
@@ -119,8 +131,8 @@ public class RestEndpointTestIT extends TestBase {
         HttpClient client = vertx.createHttpClient();
         client.request(HttpMethod.GET, 8080, "localhost", "/rest/topics?offset=" + offset)
                 .compose(req -> req.send().onSuccess(response -> {
-                    if ((response.statusCode() != 200 && offset != 4)
-                            || (response.statusCode() != 400 && offset == 4)) {
+                    if ((response.statusCode() !=  ReturnCodes.SUCC.code && offset != 4)
+                            || (response.statusCode() !=  ReturnCodes.UNOPER.code && offset == 4)) {
                         testContext.failNow("Status code not correct");
                     }
                 }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
@@ -133,7 +145,7 @@ public class RestEndpointTestIT extends TestBase {
     }
 
     @Test
-    void describeSingleTopic(Vertx vertx, VertxTestContext testContext) throws Exception {
+    void testDescribeSingleTopic(Vertx vertx, VertxTestContext testContext) throws Exception {
         final String topicName = "test-topic1";
         kafkaClient.createTopics(Collections.singletonList(
                 new NewTopic(topicName, 2, (short) 1)
@@ -144,7 +156,7 @@ public class RestEndpointTestIT extends TestBase {
         String queryReq = "/rest/topics/" + topicName;
         vertx.createHttpClient().request(HttpMethod.GET, 8080, "localhost", queryReq)
                 .compose(req -> req.send().onSuccess(response -> {
-                    if (response.statusCode() != 200) {
+                    if (response.statusCode() !=  ReturnCodes.SUCC.code) {
                         testContext.failNow("Status code not correct");
                     }
                 }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
@@ -156,7 +168,7 @@ public class RestEndpointTestIT extends TestBase {
     }
 
     @Test
-    void describeSingleTopicWithKafkaDown(Vertx vertx, VertxTestContext testContext) throws Exception {
+    void testDescribeSingleTopicWithKafkaDown(Vertx vertx, VertxTestContext testContext) throws Exception {
         final String topicName = "test-topic1";
         String queryReq = "/rest/topics/" + topicName;
         DockerClient client = DEPLOYMENT_MANAGER.getClient();
@@ -164,7 +176,7 @@ public class RestEndpointTestIT extends TestBase {
 
         vertx.createHttpClient().request(HttpMethod.GET, 8080, "localhost", queryReq)
                 .compose(req -> req.send().onSuccess(response -> {
-                    if (response.statusCode() != 500) {
+                    if (response.statusCode() != ReturnCodes.KAFKADOWN.code) {
                         testContext.failNow("Status code not correct");
                     }
                     testContext.completeNow();
@@ -172,13 +184,13 @@ public class RestEndpointTestIT extends TestBase {
     }
 
     @Test
-    void describeNonExistingTopic(Vertx vertx, VertxTestContext testContext) throws Exception {
+    void testDescribeNonExistingTopic(Vertx vertx, VertxTestContext testContext) throws Exception {
         final String topicName = "test-non-exist";
 
         String queryReq = "/rest/topics/" + topicName;
         vertx.createHttpClient().request(HttpMethod.GET, 8080, "localhost", queryReq)
                 .compose(req -> req.send().onSuccess(response -> {
-                    if (response.statusCode() != 404) {
+                    if (response.statusCode() !=  ReturnCodes.NOTFOUND.code) {
                         testContext.failNow("Status code not correct");
                     }
                     testContext.completeNow();
@@ -200,7 +212,7 @@ public class RestEndpointTestIT extends TestBase {
         vertx.createHttpClient().request(HttpMethod.POST, 8080, "localhost", "/rest/topics")
                 .compose(req -> req.putHeader("content-type", "application/json")
                         .send(MODEL_DESERIALIZER.serializeBody(topic)).onSuccess(response -> {
-                            if (response.statusCode() != 201) {
+                            if (response.statusCode() !=  ReturnCodes.TOPICCREATED.code) {
                                 testContext.failNow("Status code " + response.statusCode() + " is not correct");
                             }
                         }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
@@ -212,6 +224,28 @@ public class RestEndpointTestIT extends TestBase {
                     assertThat(description.partitions().size()).isEqualTo(3);
                     testContext.completeNow();
                 })));
+
+    }
+
+    @Test
+    void testCreateTopicWithKafkaDown(Vertx vertx, VertxTestContext testContext) {
+        final String topicName = "test-topic3";
+        Types.NewTopic topic = new Types.NewTopic();
+        topic.setName(topicName);
+        topic.setNumPartitions(3);
+        topic.setReplicationFactor(1);
+        Types.NewTopicConfigEntry config = new Types.NewTopicConfigEntry();
+        config.setKey("min.insync.replicas");
+        config.setValue("1");
+        topic.setConfig(Collections.singletonList(config));
+        DEPLOYMENT_MANAGER.getClient().stopContainerCmd(kafka.getContainerId()).exec();
+        vertx.createHttpClient().request(HttpMethod.POST, 8080, "localhost", "/rest/topics")
+                .compose(req -> req.putHeader("content-type", "application/json")
+                        .send(MODEL_DESERIALIZER.serializeBody(topic)).onSuccess(response -> {
+                            if (response.statusCode() != ReturnCodes.KAFKADOWN.code) {
+                                testContext.failNow("Status code " + response.statusCode() + " is not correct");
+                            }
+                        }).onFailure(testContext::failNow).compose(HttpClientResponse::body));
 
     }
 
@@ -230,7 +264,7 @@ public class RestEndpointTestIT extends TestBase {
         vertx.createHttpClient().request(HttpMethod.POST, 8080, "localhost", "/rest/topics")
                 .compose(req -> req.putHeader("content-type", "application/json")
                         .send(MODEL_DESERIALIZER.serializeBody(topic) + "{./as}").onSuccess(response -> {
-                            if (response.statusCode() != 400) {
+                            if (response.statusCode() !=  ReturnCodes.UNOPER.code) {
                                 testContext.failNow("Status code " + response.statusCode() + " is not correct");
                             }
                             testContext.completeNow();
@@ -252,7 +286,7 @@ public class RestEndpointTestIT extends TestBase {
         vertx.createHttpClient().request(HttpMethod.POST, 8080, "localhost", "/rest/topics")
                 .compose(req -> req.putHeader("content-type", "application/json")
                         .send(MODEL_DESERIALIZER.serializeBody(topic)).onSuccess(response -> {
-                            if (response.statusCode() != 400) {
+                            if (response.statusCode() !=  ReturnCodes.UNOPER.code) {
                                 testContext.failNow("Status code " + response.statusCode() + " is not correct");
                             }
                             testContext.completeNow();
@@ -274,7 +308,7 @@ public class RestEndpointTestIT extends TestBase {
         vertx.createHttpClient().request(HttpMethod.POST, 8080, "localhost", "/rest/topics")
                 .compose(req -> req.putHeader("content-type", "application/json")
                         .send(MODEL_DESERIALIZER.serializeBody(topic)).onSuccess(response -> {
-                            if (response.statusCode() != 400) {
+                            if (response.statusCode() !=  ReturnCodes.UNOPER.code) {
                                 testContext.failNow("Status code " + response.statusCode() + " is not correct");
                             }
                         }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
@@ -283,7 +317,7 @@ public class RestEndpointTestIT extends TestBase {
                     testContext.completeNow();
                 })));
     }
-    //todo: OAUTH, Tests with kafka down
+    //todo: OAUTH
     @Test
     void testCreateDuplicatedTopic(Vertx vertx, VertxTestContext testContext) throws Exception {
         final String topicName = "test-topic-dupl";
@@ -303,7 +337,7 @@ public class RestEndpointTestIT extends TestBase {
         vertx.createHttpClient().request(HttpMethod.POST, 8080, "localhost", "/rest/topics")
                 .compose(req -> req.putHeader("content-type", "application/json")
                         .send(MODEL_DESERIALIZER.serializeBody(topic)).onSuccess(response -> {
-                            if (response.statusCode() != 400) {
+                            if (response.statusCode() !=  ReturnCodes.DUPLICATED.code) {
                                 testContext.failNow("Status code " + response.statusCode() + " is not correct");
                             }
                             testContext.completeNow();
@@ -322,7 +356,7 @@ public class RestEndpointTestIT extends TestBase {
         vertx.createHttpClient().request(HttpMethod.DELETE, 8080, "localhost", query)
                 .compose(req -> req.putHeader("content-type", "application/json")
                         .send().onSuccess(response -> {
-                            if (response.statusCode() != 200) {
+                            if (response.statusCode() !=  ReturnCodes.SUCC.code) {
                                 testContext.failNow("Status code " + response.statusCode() + " is not correct");
                             }
                         }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
@@ -334,13 +368,27 @@ public class RestEndpointTestIT extends TestBase {
     }
 
     @Test
+    void testTopicDeleteWithKafkaDown(Vertx vertx, VertxTestContext testContext) throws Exception {
+        final String topicName = "test-topic4";
+        String query = "/rest/topics/" + topicName;
+        DEPLOYMENT_MANAGER.getClient().stopContainerCmd(kafka.getContainerId()).exec();
+        vertx.createHttpClient().request(HttpMethod.DELETE, 8080, "localhost", query)
+                .compose(req -> req.putHeader("content-type", "application/json")
+                        .send().onSuccess(response -> {
+                            if (response.statusCode() !=  ReturnCodes.KAFKADOWN.code) {
+                                testContext.failNow("Status code " + response.statusCode() + " is not correct");
+                            }
+                        }).onFailure(testContext::failNow).compose(HttpClientResponse::body));
+    }
+
+    @Test
     void testTopicDeleteNotExisting(Vertx vertx, VertxTestContext testContext) {
         final String topicName = "test-topic-non-existing";
         String query = "/rest/topics/" + topicName;
         vertx.createHttpClient().request(HttpMethod.DELETE, 8080, "localhost", query)
                 .compose(req -> req.putHeader("content-type", "application/json")
                         .send().onSuccess(response -> {
-                            if (response.statusCode() != 404) {
+                            if (response.statusCode() !=  ReturnCodes.NOTFOUND.code) {
                                 testContext.failNow("Status code " + response.statusCode() + " is not correct");
                             }
                             testContext.completeNow();
@@ -365,7 +413,7 @@ public class RestEndpointTestIT extends TestBase {
         vertx.createHttpClient().request(HttpMethod.PATCH, 8080, "localhost", "/rest/topics/" + topicName)
                 .compose(req -> req.putHeader("content-type", "application/json")
                         .send(MODEL_DESERIALIZER.serializeBody(topic1)).onSuccess(response -> {
-                            if (response.statusCode() != 200) {
+                            if (response.statusCode() !=  ReturnCodes.SUCC.code) {
                                 testContext.failNow("Status code " + response.statusCode() + " is not correct");
                             }
                         }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
@@ -378,6 +426,27 @@ public class RestEndpointTestIT extends TestBase {
                     assertThat(configVal).isEqualTo("2");
                     testContext.completeNow();
                 })));
+
+    }
+
+    @Test
+    void testUpdateTopicWithKafkaDown(Vertx vertx, VertxTestContext testContext) {
+        final String topicName = "test-topic7";
+        final String configKey = "min.insync.replicas";
+        Types.Topic topic1 = new Types.Topic();
+        topic1.setName(topicName);
+        Types.ConfigEntry conf = new Types.ConfigEntry();
+        conf.setKey(configKey);
+        conf.setValue("2");
+        topic1.setConfig(Collections.singletonList(conf));
+        DEPLOYMENT_MANAGER.getClient().stopContainerCmd(kafka.getContainerId()).exec();
+        vertx.createHttpClient().request(HttpMethod.PATCH, 8080, "localhost", "/rest/topics/" + topicName)
+                .compose(req -> req.putHeader("content-type", "application/json")
+                        .send(MODEL_DESERIALIZER.serializeBody(topic1)).onSuccess(response -> {
+                            if (response.statusCode() !=  ReturnCodes.KAFKADOWN.code) {
+                                testContext.failNow("Status code " + response.statusCode() + " is not correct");
+                            }
+                        }).onFailure(testContext::failNow).compose(HttpClientResponse::body));
 
     }
 }
