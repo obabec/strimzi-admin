@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -40,6 +41,26 @@ public class RestEndpointTestIT extends TestBase {
                 .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
                     Set<String> actualRestNames = kafkaClient.listTopics().names().get();
                     assertThat(MODEL_DESERIALIZER.getNames(buffer)).containsAll(actualRestNames);
+                    testContext.completeNow();
+                })));
+    }
+
+    @Test
+    void topicListWithFilterTest(Vertx vertx, VertxTestContext testContext) {
+        kafkaClient.createTopics(Arrays.asList(
+                new NewTopic("test-topic1", 1, (short) 1),
+                new NewTopic("test-topic2", 1, (short) 1)
+        ));
+        HttpClient client = vertx.createHttpClient();
+        client.request(HttpMethod.GET, 8080, "localhost", "/rest/topics?filter=test-topic.*")
+                .compose(req -> req.send().onSuccess(response -> {
+                    if (response.statusCode() != 200) {
+                        testContext.failNow("Status code not correct");
+                    }
+                }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    Set<String> actualRestNames = kafkaClient.listTopics().names().get();
+                    assertThat(MODEL_DESERIALIZER.getNames(buffer)).isEqualTo(actualRestNames.stream().filter(name -> name.contains("test-topic")).collect(Collectors.toSet()));
                     testContext.completeNow();
                 })));
     }

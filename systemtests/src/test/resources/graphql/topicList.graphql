@@ -1,4 +1,4 @@
-query Topics($filter: String) {
+query Topics($filter: String!) {
     topicList(search: $filter) {
         items {
             name
