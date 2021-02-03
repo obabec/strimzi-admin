@@ -51,6 +51,7 @@ public class RestEndpointTestIT extends TestBase {
 
     @Test
     void testTopicListWithKafkaDown(Vertx vertx, VertxTestContext testContext) throws InterruptedException {
+        kafkaClient.close();
         HttpClient client = vertx.createHttpClient();
         DEPLOYMENT_MANAGER.getClient().stopContainerCmd(kafka.getContainerId()).exec();
 
@@ -176,6 +177,7 @@ public class RestEndpointTestIT extends TestBase {
 
     @Test
     void testDescribeSingleTopicWithKafkaDown(Vertx vertx, VertxTestContext testContext) throws Exception {
+        kafkaClient.close();
         final String topicName = "test-topic1";
         String queryReq = "/rest/topics/" + topicName;
         DockerClient client = DEPLOYMENT_MANAGER.getClient();
@@ -183,11 +185,11 @@ public class RestEndpointTestIT extends TestBase {
 
         vertx.createHttpClient().request(HttpMethod.GET, 8080, "localhost", queryReq)
                 .compose(req -> req.send().onComplete(l -> testContext.verify(() -> {
-                            if (l.succeeded()) {
-                                assertThat(l.result().statusCode()).isEqualTo(ReturnCodes.KAFKADOWN.code);
-                            }
-                            testContext.completeNow();
-                        })).onFailure(testContext::failNow));
+                    if (l.succeeded()) {
+                        assertThat(l.result().statusCode()).isEqualTo(ReturnCodes.KAFKADOWN.code);
+                    }
+                    testContext.completeNow();
+                })).onFailure(testContext::failNow));
         assertThat(testContext.awaitCompletion(1, TimeUnit.MINUTES)).isTrue();
     }
 
@@ -240,6 +242,7 @@ public class RestEndpointTestIT extends TestBase {
 
     @Test
     void testCreateTopicWithKafkaDown(Vertx vertx, VertxTestContext testContext) throws InterruptedException {
+        kafkaClient.close();
         final String topicName = "test-topic3";
         Types.NewTopic topic = new Types.NewTopic();
         topic.setName(topicName);
@@ -397,6 +400,7 @@ public class RestEndpointTestIT extends TestBase {
 
     @Test
     void testTopicDeleteWithKafkaDown(Vertx vertx, VertxTestContext testContext) throws Exception {
+        kafkaClient.close();
         final String topicName = "test-topic4";
         String query = "/rest/topics/" + topicName;
         DEPLOYMENT_MANAGER.getClient().stopContainerCmd(kafka.getContainerId()).exec();
