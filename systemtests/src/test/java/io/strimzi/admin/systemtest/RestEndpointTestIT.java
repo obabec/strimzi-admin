@@ -344,7 +344,7 @@ public class RestEndpointTestIT extends TestBase {
                 })));
         assertThat(testContext.awaitCompletion(1, TimeUnit.MINUTES)).isTrue();
     }
-    //todo: OAUTH
+
     @Test
     void testCreateDuplicatedTopic(Vertx vertx, VertxTestContext testContext) throws Exception {
         final String topicName = "test-topic-dupl";
