@@ -19,11 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-
-import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -54,9 +50,10 @@ public class RestOAuthTestIT {
                     token = new ObjectMapper().readValue(buffer.result().toString(), TokenModel.class);
                     LOGGER.info("xx");
                     testContext.completeNow();
-        }));
+                }));
         assertThat(testContext.awaitCompletion(2, TimeUnit.MINUTES)).isTrue();
     }
+
     @AfterEach
     public void teardown() {
         DEPLOYMENT_MANAGER.teardownOauth();

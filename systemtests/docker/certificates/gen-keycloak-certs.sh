@@ -2,10 +2,10 @@
 
 set -e
 
-PASSWORD=changeit
+PASSWORD=testmypass
 
 echo "#### Create server certificate for Keycloak"
-keytool -keystore keycloak.server.keystore.p12 -storetype pkcs12 -keyalg RSA -alias keycloak -validity 3650 -genkey -storepass $PASSWORD -keypass $PASSWORD -dname CN=keycloak -ext SAN=DNS:keycloak,DNS:localhost
+keytool -keystore keycloak.server.keystore.p12 -storetype pkcs12 -keyalg RSA -alias keycloak -validity 3650 -genkey -storepass $PASSWORD -keypass $PASSWORD -dname CN=keycloak -ext SAN=DNS:keycloak
 
 #echo "#### Create CA"
 #openssl req -new -x509 -keyout ca.key -out ca.crt -days 3650 -subj "/CN=strimzi.io" -passout pass:$PASSWORD
