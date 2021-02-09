@@ -32,12 +32,13 @@ public class TestBase {
 
     @BeforeEach
     public void startup() throws Exception {
-        network = Network.newNetwork();
-        kafka = kafka.withEmbeddedZookeeper().withNetwork(network);
+        DEPLOYMENT_MANAGER.createNetwork();
+        kafka = kafka.withEmbeddedZookeeper();
         kafka.start();
+        DEPLOYMENT_MANAGER.connectKafkaTestContainerToNetwork(kafka.getContainerId());
         String kafkaIp = kafka.getContainerInfo().getNetworkSettings().getNetworks()
-                .get(((Network.NetworkImpl) network).getName()).getIpAddress();
-        DEPLOYMENT_MANAGER.deployAdminContainer(network.getId(), kafkaIp);
+                .get(AdminDeploymentManager.NETWORK_NAME).getIpAddress();
+        DEPLOYMENT_MANAGER.deployAdminContainer(kafkaIp, false);
         Map<String, Object> conf = new HashMap<>();
         conf.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
         conf.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, "5000");
