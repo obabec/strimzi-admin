@@ -144,6 +144,11 @@ public class AdminDeploymentManager {
                 .get(AdminDeploymentManager.NETWORK_NAME).getIpAddress();
     }
 
+    public String getKafkaIP(String kafkaId) {
+        return client.inspectContainerCmd(kafkaId).exec().getNetworkSettings().getNetworks()
+                .get(AdminDeploymentManager.NETWORK_NAME).getIpAddress();
+    }
+
     public void createNetwork() {
         networkId = client.createNetworkCmd().withName(NETWORK_NAME).exec().getId();
     }
@@ -155,6 +160,7 @@ public class AdminDeploymentManager {
     public void teardown() {
         client.stopContainerCmd(adminContId).exec();
         client.removeContainerCmd(adminContId).exec();
+        client.removeNetworkCmd(networkId).exec();
     }
     //todo: better rewrite this so error states can be handled
     public void teardownOauth() {

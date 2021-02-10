@@ -183,6 +183,15 @@
                                 <ignoredDependency>io.strimzi:kafka-oauth-client</ignoredDependency>
                                 <ignoredDependency>org.apache.logging.log4j:log4j-core</ignoredDependency>
                                 <ignoredDependency>org.apache.logging.log4j:log4j-slf4j-impl</ignoredDependency>
+                                <!-- Oauth kafka test dependencies -->
+                                <ignoredDependency>io.strimzi:kafka-oauth-common</ignoredDependency>
+                                <ignoredDependency>io.strimzi:kafka-oauth-server</ignoredDependency>
+                                <ignoredDependency>io.strimzi:kafka-oauth-server-plain</ignoredDependency>
+                                <ignoredDependency>io.strimzi:kafka-oauth-keycloak-authorizer</ignoredDependency>
+                                <ignoredDependency>org.keycloak:keycloak-core</ignoredDependency>
+                                <ignoredDependency>org.keycloak:keycloak-common</ignoredDependency>
+                                <ignoredDependency>org.bouncycastle:bcprov-jdk15on</ignoredDependency>
+                                <ignoredDependency>com.jayway.jsonpath:json-path</ignoredDependency>
                             </ignoredDependencies>
                         </configuration>
                     </execution>

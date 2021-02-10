@@ -10,23 +10,66 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientResponse;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.config.ConfigResource;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.utility.DockerImageName;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class RestEndpointTestIT extends TestBase {
+@ExtendWith(VertxExtension.class)
+public class RestEndpointTestIT {
+    protected static final Logger LOGGER = LogManager.getLogger(RestEndpointTestIT.class);
+
+    protected static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:5.4.3"));
+
+    protected static final AdminDeploymentManager DEPLOYMENT_MANAGER = new AdminDeploymentManager();
+    protected static AdminClient kafkaClient;
+    protected static final ModelDeserializer MODEL_DESERIALIZER = new ModelDeserializer();
+
+    @BeforeEach
+    public void startup() throws Exception {
+        DEPLOYMENT_MANAGER.createNetwork();
+        kafka = kafka.withEmbeddedZookeeper();
+        kafka.start();
+        DEPLOYMENT_MANAGER.connectKafkaTestContainerToNetwork(kafka.getContainerId());
+        String kafkaIp = DEPLOYMENT_MANAGER.getKafkaIP(kafka.getContainerId());
+        DEPLOYMENT_MANAGER.deployAdminContainer(kafkaIp, false);
+        Map<String, Object> conf = new HashMap<>();
+        conf.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
+        conf.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, "5000");
+        kafkaClient = AdminClient.create(conf);
+    }
+
+    @AfterEach
+    public void teardown() {
+        LOGGER.info("Teardown docker environment");
+        kafkaClient.close();
+        kafka.stop();
+        DEPLOYMENT_MANAGER.teardown();
+    }
+
 
     @Test
     void testTopicListAfterCreation(Vertx vertx, VertxTestContext testContext) throws InterruptedException {

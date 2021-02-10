@@ -2,7 +2,7 @@
 
 set -e
 
-PASSWORD=testmypass
+PASSWORD=testpassword
 
 echo "#### Create server certificate for Keycloak"
 keytool -keystore keycloak.server.keystore.p12 -storetype pkcs12 -keyalg RSA -alias keycloak -validity 3650 -genkey -storepass $PASSWORD -keypass $PASSWORD -dname CN=keycloak -ext SAN=DNS:keycloak
