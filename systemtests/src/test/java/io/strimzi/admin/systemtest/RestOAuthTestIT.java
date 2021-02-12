@@ -59,12 +59,12 @@ public class RestOAuthTestIT {
                 .compose(req -> req.putHeader("Host", "keycloak:8080")
                         .putHeader("Content-Type", "application/x-www-form-urlencoded").send(payload))
                 .compose(HttpClientResponse::body).onComplete(buffer -> {
-
                     try {
                         token = new ObjectMapper().readValue(buffer.result().toString(), TokenModel.class);
                     } catch (JsonProcessingException e) {
                         e.printStackTrace();
                     }
+                    LOGGER.warn("Got token");
                     countDownLatch.countDown();
                 });
         countDownLatch.await(30, TimeUnit.SECONDS);
@@ -93,6 +93,7 @@ public class RestOAuthTestIT {
 
     @Test
     public void listWithValidTokenTest(Vertx vertx, VertxTestContext testContext) throws Exception {
+        LOGGER.warn("testino");
         kafkaClient.createTopics(Arrays.asList(
                 new NewTopic("test-topic1", 1, (short) 1),
                 new NewTopic("test-topic2", 1, (short) 1)
@@ -111,27 +112,21 @@ public class RestOAuthTestIT {
                     testContext.completeNow();
                 })));
         assertThat(testContext.awaitCompletion(1, TimeUnit.MINUTES)).isTrue();
-        testContext.completeNow();
     }
 
     @Test
-    public void listWithInvalidTokenTest(Vertx vertx, VertxTestContext testContext) {
-        LOGGER.info("test");
+    public void listWithInvalidTokenTest(Vertx vertx, VertxTestContext testContext) throws InterruptedException {
         String invalidToken = new Random().ints(97, 98)
                 .limit(token.getAccessToken().length())
                 .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
                 .toString();
         HttpClient client = vertx.createHttpClient();
         client.request(HttpMethod.GET, 8081, "localhost", "/rest/topics")
-                .compose(req -> req.putHeader("Authorization", "Bearer " + token.getAccessToken()).send().onSuccess(response -> {
-                    if (response.statusCode() !=  ReturnCodes.UNAUTHORIZED.code) {
-                        testContext.failNow("Status code not correct");
-                    }
-                }));
+                .compose(req -> req.putHeader("Authorization", "Bearer " + invalidToken).send()
+                        .onSuccess(response -> testContext.verify(() -> {
+                            assertThat(response.statusCode()).isEqualTo(ReturnCodes.UNAUTHORIZED.code);
+                            testContext.completeNow();
+                        })));
         assertThat(testContext.awaitCompletion(1, TimeUnit.MINUTES)).isTrue();
-        testContext.completeNow();
-
-        assertThat(1).isEqualTo(1);
-        testContext.completeNow();
     }
 }

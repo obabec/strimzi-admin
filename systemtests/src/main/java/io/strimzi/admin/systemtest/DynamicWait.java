@@ -42,7 +42,7 @@ public class DynamicWait {
                 return Boolean.TRUE;
             }
             return Boolean.FALSE;
-        }, Boolean.TRUE, 10);
+        }, Boolean.TRUE, 20);
     }
 
     public static void waitForTopicsToBeDeleted(Collection<String> topicNames, AdminClient kafkaClient) throws Exception {

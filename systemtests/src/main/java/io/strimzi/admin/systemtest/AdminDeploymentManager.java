@@ -65,8 +65,8 @@ public class AdminDeploymentManager {
         while (attempts++ < waitTimeout && !ready.get()) {
             HttpClient client = vertx.createHttpClient();
 
-            client.request(HttpMethod.GET, 8080, "localhost", "/auth")
-                    .compose(req -> req.setFollowRedirects(true).send().onComplete(res -> {
+            client.request(HttpMethod.GET, 8080, "localhost", "/auth/realms/demo")
+                    .compose(req -> req.send().onComplete(res -> {
                         if (res.succeeded() && res.result().statusCode() == 200) {
                             ready.set(true);
                         }
@@ -107,7 +107,6 @@ public class AdminDeploymentManager {
                         .withNetworkMode(NETWORK_NAME)).exec();
         keycloakContId = keycloakResp.getId();
         client.startContainerCmd(keycloakContId).exec();
-        waitForKeycloakReady();
 
         CreateContainerResponse keycloakImportResp = client.createContainerCmd("strimzi-admin-keycloak-import")
                 .withName("keycloak_import")
@@ -115,6 +114,8 @@ public class AdminDeploymentManager {
         keycloakImportContId = keycloakImportResp.getId();
         client.startContainerCmd(keycloakImportContId).exec();
         client.connectToNetworkCmd().withNetworkId(networkId).withContainerId(keycloakImportContId).exec();
+
+        waitForKeycloakReady();
     }
 
 
