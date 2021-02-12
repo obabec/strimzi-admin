@@ -174,7 +174,6 @@ public class AdminDeploymentManager {
     }
     //todo: better rewrite this so error states can be handled
     public void teardownOauth() {
-
         client.stopContainerCmd(adminContId).exec();
         client.removeContainerCmd(adminContId).exec();
         client.stopContainerCmd(kafkaContId).exec();

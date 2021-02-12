@@ -116,6 +116,7 @@ public class RestOAuthTestIT {
 
     @Test
     public void listWithInvalidTokenTest(Vertx vertx, VertxTestContext testContext) throws InterruptedException {
+        kafkaClient.close();
         String invalidToken = new Random().ints(97, 98)
                 .limit(token.getAccessToken().length())
                 .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
