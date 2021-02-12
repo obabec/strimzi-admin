@@ -160,12 +160,39 @@
                             <goal>copy-resources</goal>
                         </goals>
                         <configuration>
-                            <outputDirectory>docker/target/kafka/certs</outputDirectory>
+                            <outputDirectory>docker/target/kafka/config</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>docker/certificates</directory>
                                     <includes>
                                         <include>ca-truststore.p12</include>
+                                    </includes>
+                                    <filtering>false</filtering>
+                                </resource>
+                                <resource>
+                                    <directory>docker/kafka/config</directory>
+                                    <includes>
+                                        <include>log4j.properties</include>
+                                    </includes>
+                                    <filtering>false</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-kafka-example-certs</id>
+                        <phase>install</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>docker/target/kafka/certs</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>docker/certificates</directory>
+                                    <includes>
+                                        <include>cluster.keystore.p12</include>
+                                        <include>cluster.truststore.p12</include>
                                     </includes>
                                     <filtering>false</filtering>
                                 </resource>

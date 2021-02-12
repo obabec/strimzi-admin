@@ -27,6 +27,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.Arrays;
 import java.util.Properties;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -51,7 +53,7 @@ public class RestOAuthTestIT {
         // Get valid auth token
         Vertx vertx = Vertx.vertx();
         HttpClient client = vertx.createHttpClient();
-        String payload = "grant_type=client_credentials&client_secret=kafka-broker-secret&client_id=kafka-broker";
+        String payload = "grant_type=client_credentials&client_secret=kafka-producer-client-secret&client_id=kafka-producer-client";
         CountDownLatch countDownLatch = new CountDownLatch(1);
         client.request(HttpMethod.POST, 8080, "localhost", "/auth/realms/demo/protocol/openid-connect/token")
                 .compose(req -> req.putHeader("Host", "keycloak:8080")
@@ -77,7 +79,7 @@ public class RestOAuthTestIT {
         props.put(SaslConfigs.SASL_MECHANISM, "OAUTHBEARER");
         props.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, "10000");
         props.put(SaslConfigs.SASL_JAAS_CONFIG,  "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required oauth.access.token=\"" + token.getAccessToken() + "\";");
-        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, "PLAINTEXT://localhost:9092");
+        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
         props.put(AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG, "30000");
         kafkaClient = KafkaAdminClient.create(props);
     }
@@ -95,14 +97,39 @@ public class RestOAuthTestIT {
                 new NewTopic("test-topic1", 1, (short) 1),
                 new NewTopic("test-topic2", 1, (short) 1)
         ));
-
+        DynamicWait.waitForTopicsExists(Arrays.asList("test-topic1", "test-topic2"), kafkaClient);
+        HttpClient client = vertx.createHttpClient();
+        client.request(HttpMethod.GET, 8081, "localhost", "/rest/topics")
+                .compose(req -> req.putHeader("Authorization", "Bearer " + token.getAccessToken()).send().onSuccess(response -> {
+                    if (response.statusCode() !=  ReturnCodes.SUCC.code) {
+                        testContext.failNow("Status code not correct");
+                    }
+                }).onFailure(testContext::failNow).compose(HttpClientResponse::body))
+                .onComplete(testContext.succeeding(buffer -> testContext.verify(() -> {
+                    Set<String> actualRestNames = kafkaClient.listTopics().names().get();
+                    assertThat(MODEL_DESERIALIZER.getNames(buffer)).containsAll(actualRestNames);
+                    testContext.completeNow();
+                })));
+        assertThat(testContext.awaitCompletion(1, TimeUnit.MINUTES)).isTrue();
         testContext.completeNow();
     }
 
     @Test
     public void listWithInvalidTokenTest(Vertx vertx, VertxTestContext testContext) {
         LOGGER.info("test");
-
+        String invalidToken = new Random().ints(97, 98)
+                .limit(token.getAccessToken().length())
+                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
+                .toString();
+        HttpClient client = vertx.createHttpClient();
+        client.request(HttpMethod.GET, 8081, "localhost", "/rest/topics")
+                .compose(req -> req.putHeader("Authorization", "Bearer " + token.getAccessToken()).send().onSuccess(response -> {
+                    if (response.statusCode() !=  ReturnCodes.UNAUTHORIZED.code) {
+                        testContext.failNow("Status code not correct");
+                    }
+                }));
+        assertThat(testContext.awaitCompletion(1, TimeUnit.MINUTES)).isTrue();
+        testContext.completeNow();
 
         assertThat(1).isEqualTo(1);
         testContext.completeNow();

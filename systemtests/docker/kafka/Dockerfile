@@ -1,7 +1,9 @@
 FROM quay.io/strimzi/kafka:0.21.1-kafka-2.6.0
-ADD ${PWD}/docker/target/kafka/libs /opt/kafka/libs/strimzi
-ADD ${PWD}/docker/kafka/config /opt/kafka/config/strimzi
-ADD ${PWD}/docker/kafka/scripts /opt/kafka/strimzi
+COPY ${PWD}/docker/target/kafka/libs/* /opt/kafka/libs/strimzi/
+COPY ${PWD}/docker/target/kafka/config/* /opt/kafka/config/strimzi/
+COPY ${PWD}/docker/kafka/scripts /opt/kafka/
+COPY ${PWD}/docker/target/kafka/certs/* /tmp/kafka
+
 
 
 ENV LOG_DIR: /home/kafka/logs
@@ -39,7 +41,6 @@ ENV OAUTH_USERNAME_CLAIM preferred_username
 ENV KEYCLOAK_HOST keycloak
 ENV REALM demo
 
-ENTRYPOINT ["/bin/bash", "-c"]
-CMD ["cd /opt/kafka/strimzi && ./start.sh"]
+CMD ["/bin/bash", "/opt/kafka/start.sh"]
 
 

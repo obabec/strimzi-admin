@@ -24,6 +24,7 @@ public class AdminDeploymentManager {
     private static DockerClient client;
     private static String adminContId;
     private static String keycloakContId;
+    private static String keycloakImportContId;
     private static String kafkaContId;
     private static String zookeeperContId;
     private static String networkId;
@@ -57,15 +58,15 @@ public class AdminDeploymentManager {
     }
 
     private void waitForKeycloakReady() throws TimeoutException, InterruptedException {
-        final int waitTimeout = 40;
+        final int waitTimeout = 60;
         Vertx vertx = Vertx.vertx();
         int attempts = 0;
         AtomicBoolean ready = new AtomicBoolean(false);
         while (attempts++ < waitTimeout && !ready.get()) {
             HttpClient client = vertx.createHttpClient();
 
-            client.request(HttpMethod.GET, 8080, "localhost", "/auth/realms/demo")
-                    .compose(req -> req.send().onComplete(res -> {
+            client.request(HttpMethod.GET, 8080, "localhost", "/auth")
+                    .compose(req -> req.setFollowRedirects(true).send().onComplete(res -> {
                         if (res.succeeded() && res.result().statusCode() == 200) {
                             ready.set(true);
                         }
@@ -85,31 +86,38 @@ public class AdminDeploymentManager {
         CreateContainerResponse contResp = client.createContainerCmd("strimzi-admin")
                 .withExposedPorts(adminPort)
                 .withHostConfig(new HostConfig()
-                        .withPortBindings(portBind))
+                        .withPortBindings(portBind)
+                        .withNetworkMode(NETWORK_NAME))
                 .withCmd("/opt/strimzi/run.sh -e KAFKA_ADMIN_BOOTSTRAP_SERVERS='" + kafkaIP
                         + ":9092' -e KAFKA_ADMIN_OAUTH_ENABLED='" + oauth + "' -e VERTXWEB_ENVIRONMENT='dev'").exec();
         adminContId = contResp.getId();
         client.startContainerCmd(contResp.getId()).exec();
-        client.connectToNetworkCmd().withNetworkId(networkId).withContainerId(contResp.getId()).exec();
         waitForAdminReady();
     }
 
     public void deployKeycloak() throws TimeoutException, InterruptedException {
         ExposedPort port = ExposedPort.tcp(8080);
-        ExposedPort portSsl = ExposedPort.tcp(8443);
         Ports portBind = new Ports();
         portBind.bind(port, Ports.Binding.bindPort(8080));
-        portBind.bind(portSsl, Ports.Binding.bindPort(8443));
         CreateContainerResponse keycloakResp = client.createContainerCmd("strimzi-admin-keycloak")
-                .withExposedPorts(port, portSsl)
+                .withExposedPorts(port)
                 .withName("keycloak")
                 .withHostConfig(new HostConfig()
-                        .withPortBindings(portBind)).exec();
+                        .withPortBindings(portBind)
+                        .withNetworkMode(NETWORK_NAME)).exec();
         keycloakContId = keycloakResp.getId();
         client.startContainerCmd(keycloakContId).exec();
-        client.connectToNetworkCmd().withNetworkId(networkId).withContainerId(keycloakContId).exec();
         waitForKeycloakReady();
+
+        CreateContainerResponse keycloakImportResp = client.createContainerCmd("strimzi-admin-keycloak-import")
+                .withName("keycloak_import")
+                .exec();
+        keycloakImportContId = keycloakImportResp.getId();
+        client.startContainerCmd(keycloakImportContId).exec();
+        client.connectToNetworkCmd().withNetworkId(networkId).withContainerId(keycloakImportContId).exec();
     }
+
+
 
     public void deployZookeeper() {
         ExposedPort port = ExposedPort.tcp(2181);
@@ -119,10 +127,10 @@ public class AdminDeploymentManager {
                 .withExposedPorts(port)
                 .withName("zookeeper")
                 .withHostConfig(new HostConfig()
-                        .withPortBindings(portBind)).exec();
+                        .withPortBindings(portBind)
+                        .withNetworkMode(NETWORK_NAME)).exec();
         zookeeperContId = zookeeperResp.getId();
         client.startContainerCmd(zookeeperContId).exec();
-        client.connectToNetworkCmd().withNetworkId(networkId).withContainerId(zookeeperContId).exec();
     }
 
     public void deployKafka() {
@@ -132,11 +140,12 @@ public class AdminDeploymentManager {
         CreateContainerResponse kafkaResp = client.createContainerCmd("strimzi-admin-kafka")
                 .withExposedPorts(port)
                 .withName("kafka")
+                .withHostName("kafka")
                 .withHostConfig(new HostConfig()
-                        .withPortBindings(portBind)).exec();
+                        .withPortBindings(portBind)
+                        .withNetworkMode(NETWORK_NAME)).exec();
         kafkaContId = kafkaResp.getId();
         client.startContainerCmd(kafkaContId).exec();
-        client.connectToNetworkCmd().withNetworkId(networkId).withContainerId(kafkaContId).exec();
     }
 
     public String getKafkaIP() {
@@ -173,6 +182,7 @@ public class AdminDeploymentManager {
         client.removeContainerCmd(zookeeperContId).exec();
         client.stopContainerCmd(keycloakContId).exec();
         client.removeContainerCmd(keycloakContId).exec();
+        client.removeContainerCmd(keycloakImportContId).exec();
         client.removeNetworkCmd(networkId).exec();
     }
 
