@@ -2,7 +2,7 @@
  * Copyright Strimzi authors.
  * License: Apache License 2.0 (see the file LICENSE or http://apache.org/licenses/LICENSE-2.0.html).
  */
-package io.strimzi.admin.systemtest;
+package io.strimzi.admin.systemtest.json;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -25,16 +25,24 @@ public class TokenModel {
     @JsonProperty("scope")
     private String scope;
 
+    @JsonProperty("refresh_token")
+    private String refreshToken;
+
+    @JsonProperty("session_state")
+    private String sessionState;
+
     public TokenModel() {
     }
 
-    public TokenModel(String accessToken, int expire, int refreshExpire, String tokenType, String notBeforePolicy, String scope) {
+    public TokenModel(String accessToken, int expire, int refreshExpire, String tokenType, String notBeforePolicy, String scope, String refreshToken, String sessionState) {
         this.accessToken = accessToken;
         this.expire = expire;
         this.refreshExpire = refreshExpire;
         this.tokenType = tokenType;
         this.notBeforePolicy = notBeforePolicy;
         this.scope = scope;
+        this.refreshToken = refreshToken;
+        this.sessionState = sessionState;
     }
 
     public String getAccessToken() {
@@ -83,5 +91,21 @@ public class TokenModel {
 
     public void setScope(String scope) {
         this.scope = scope;
+    }
+
+    public String getRefreshToken() {
+        return refreshToken;
+    }
+
+    public void setRefreshToken(String refreshToken) {
+        this.refreshToken = refreshToken;
+    }
+
+    public String getSessionState() {
+        return sessionState;
+    }
+
+    public void setSessionState(String sessionState) {
+        this.sessionState = sessionState;
     }
 }

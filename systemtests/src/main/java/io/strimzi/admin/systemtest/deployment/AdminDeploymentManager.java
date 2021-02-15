@@ -2,7 +2,7 @@
  * Copyright Strimzi authors.
  * License: Apache License 2.0 (see the file LICENSE or http://apache.org/licenses/LICENSE-2.0.html).
  */
-package io.strimzi.admin.systemtest;
+package io.strimzi.admin.systemtest.deployment;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
@@ -28,7 +28,7 @@ public class AdminDeploymentManager {
     private static String kafkaContId;
     private static String zookeeperContId;
     private static String networkId;
-    protected static final String NETWORK_NAME = "strimzi-admin-network";
+    public static final String NETWORK_NAME = "strimzi-admin-network";
 
     public AdminDeploymentManager() {
         client = DockerClientBuilder.getInstance(DefaultDockerClientConfig.createDefaultConfigBuilder().build()).build();

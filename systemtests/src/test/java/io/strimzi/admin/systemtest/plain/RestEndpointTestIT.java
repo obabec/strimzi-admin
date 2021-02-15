@@ -2,26 +2,22 @@
  * Copyright Strimzi authors.
  * License: Apache License 2.0 (see the file LICENSE or http://apache.org/licenses/LICENSE-2.0.html).
  */
-package io.strimzi.admin.systemtest;
+package io.strimzi.admin.systemtest.plain;
 
 import com.github.dockerjava.api.DockerClient;
-import io.strimzi.StrimziKafkaContainer;
 import io.strimzi.admin.kafka.admin.model.Types;
+import io.strimzi.admin.systemtest.DynamicWait;
+import io.strimzi.admin.systemtest.enums.ReturnCodes;
+import io.strimzi.admin.systemtest.bases.TestBase;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientResponse;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.config.ConfigResource;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,8 +25,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -38,38 +32,7 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(VertxExtension.class)
-public class RestEndpointTestIT {
-    protected static final Logger LOGGER = LogManager.getLogger(RestEndpointTestIT.class);
-
-    protected static StrimziKafkaContainer kafka = null;
-
-    protected static final AdminDeploymentManager DEPLOYMENT_MANAGER = new AdminDeploymentManager();
-    protected static AdminClient kafkaClient;
-    protected static final ModelDeserializer MODEL_DESERIALIZER = new ModelDeserializer();
-
-    @BeforeEach
-    public void startup() throws Exception {
-        kafka = new StrimziKafkaContainer();
-        kafka.start();
-        String networkName = DEPLOYMENT_MANAGER.getNetworkName(kafka.getNetwork().getId());
-        String kafkaIp = DEPLOYMENT_MANAGER.getKafkaIP(kafka.getContainerId(), networkName);
-        DEPLOYMENT_MANAGER.deployAdminContainer(kafkaIp + ":9093", false, networkName);
-        Map<String, Object> conf = new HashMap<>();
-        conf.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
-        conf.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, "5000");
-        kafkaClient = AdminClient.create(conf);
-    }
-
-    @AfterEach
-    public void teardown() {
-        LOGGER.info("Teardown docker environment");
-        kafkaClient.close();
-        kafka.stop();
-        kafka = null;
-        DEPLOYMENT_MANAGER.teardown();
-    }
-
-
+public class RestEndpointTestIT extends TestBase {
     @Test
     void testTopicListAfterCreation(Vertx vertx, VertxTestContext testContext) throws Exception {
         kafkaClient.createTopics(Arrays.asList(
@@ -476,7 +439,7 @@ public class RestEndpointTestIT {
     }
 
     @Test
-    void testUpdateTopic(Vertx vertx, VertxTestContext testContext) throws InterruptedException {
+    void testUpdateTopic(Vertx vertx, VertxTestContext testContext) throws Exception {
         final String topicName = "test-topic7";
         final String configKey = "min.insync.replicas";
         Types.Topic topic1 = new Types.Topic();
@@ -489,7 +452,7 @@ public class RestEndpointTestIT {
         kafkaClient.createTopics(Collections.singletonList(
                 new NewTopic(topicName, 1, (short) 1)
         ));
-
+        DynamicWait.waitForTopicExists(topicName, kafkaClient);
         vertx.createHttpClient().request(HttpMethod.PATCH, 8081, "localhost", "/rest/topics/" + topicName)
                 .compose(req -> req.putHeader("content-type", "application/json")
                         .send(MODEL_DESERIALIZER.serializeBody(topic1)).onSuccess(response -> {
