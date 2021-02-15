@@ -48,7 +48,7 @@ public class RestOAuthTestIT {
         DEPLOYMENT_MANAGER.deployKeycloak();
         DEPLOYMENT_MANAGER.deployZookeeper();
         DEPLOYMENT_MANAGER.deployKafka();
-        DEPLOYMENT_MANAGER.deployAdminContainer(DEPLOYMENT_MANAGER.getKafkaIP(), true);
+        DEPLOYMENT_MANAGER.deployAdminContainer(DEPLOYMENT_MANAGER.getKafkaIP() + ":9092", true, AdminDeploymentManager.NETWORK_NAME);
 
         // Get valid auth token
         Vertx vertx = Vertx.vertx();
@@ -84,6 +84,25 @@ public class RestOAuthTestIT {
         kafkaClient = KafkaAdminClient.create(props);
     }
 
+    private void getConsumerToken(Vertx vertx) throws InterruptedException {
+        HttpClient client = vertx.createHttpClient();
+        String payload = "grant_type=client_credentials&client_secret=kafka-consumer-client-secret&client_id=kafka-consumer-client";
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        client.request(HttpMethod.POST, 8080, "localhost", "/auth/realms/demo/protocol/openid-connect/token")
+                .compose(req -> req.putHeader("Host", "keycloak:8080")
+                        .putHeader("Content-Type", "application/x-www-form-urlencoded").send(payload))
+                .compose(HttpClientResponse::body).onComplete(buffer -> {
+                    try {
+                        token = new ObjectMapper().readValue(buffer.result().toString(), TokenModel.class);
+                    } catch (JsonProcessingException e) {
+                        e.printStackTrace();
+                    }
+                    LOGGER.warn("Got token");
+                    countDownLatch.countDown();
+                });
+        countDownLatch.await(30, TimeUnit.SECONDS);
+    }
+
     @AfterEach
     public void teardown() {
         kafkaClient.close();
@@ -93,7 +112,6 @@ public class RestOAuthTestIT {
 
     @Test
     public void listWithValidTokenTest(Vertx vertx, VertxTestContext testContext) throws Exception {
-        LOGGER.warn("testino");
         kafkaClient.createTopics(Arrays.asList(
                 new NewTopic("test-topic1", 1, (short) 1),
                 new NewTopic("test-topic2", 1, (short) 1)
@@ -130,4 +148,19 @@ public class RestOAuthTestIT {
                         })));
         assertThat(testContext.awaitCompletion(1, TimeUnit.MINUTES)).isTrue();
     }
+
+    @Test
+    public void listWithExpiredTokenTest(Vertx vertx, VertxTestContext testContext) throws InterruptedException {
+        getConsumerToken(vertx);
+        Thread.sleep(60_000);
+        HttpClient client = vertx.createHttpClient();
+        client.request(HttpMethod.GET, 8081, "localhost", "/rest/topics")
+                .compose(req -> req.putHeader("Authorization", "Bearer " + token.getAccessToken()).send()
+                        .onSuccess(response -> testContext.verify(() -> {
+                            assertThat(response.statusCode()).isEqualTo(ReturnCodes.UNAUTHORIZED.code);
+                            testContext.completeNow();
+                        })));
+        assertThat(testContext.awaitCompletion(1, TimeUnit.MINUTES)).isTrue();
+    }
+
 }

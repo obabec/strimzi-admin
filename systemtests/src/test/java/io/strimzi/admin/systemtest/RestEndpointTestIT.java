@@ -5,6 +5,7 @@
 package io.strimzi.admin.systemtest;
 
 import com.github.dockerjava.api.DockerClient;
+import io.strimzi.StrimziKafkaContainer;
 import io.strimzi.admin.kafka.admin.model.Types;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
@@ -25,8 +26,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.testcontainers.containers.KafkaContainer;
-import org.testcontainers.utility.DockerImageName;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class RestEndpointTestIT {
     protected static final Logger LOGGER = LogManager.getLogger(RestEndpointTestIT.class);
 
-    protected static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:5.4.3"));
+    protected static StrimziKafkaContainer kafka = null;
 
     protected static final AdminDeploymentManager DEPLOYMENT_MANAGER = new AdminDeploymentManager();
     protected static AdminClient kafkaClient;
@@ -50,12 +49,11 @@ public class RestEndpointTestIT {
 
     @BeforeEach
     public void startup() throws Exception {
-        DEPLOYMENT_MANAGER.createNetwork();
-        kafka = kafka.withEmbeddedZookeeper();
+        kafka = new StrimziKafkaContainer();
         kafka.start();
-        DEPLOYMENT_MANAGER.connectKafkaTestContainerToNetwork(kafka.getContainerId());
-        String kafkaIp = DEPLOYMENT_MANAGER.getKafkaIP(kafka.getContainerId());
-        DEPLOYMENT_MANAGER.deployAdminContainer(kafkaIp, false);
+        String networkName = DEPLOYMENT_MANAGER.getNetworkName(kafka.getNetwork().getId());
+        String kafkaIp = DEPLOYMENT_MANAGER.getKafkaIP(kafka.getContainerId(), networkName);
+        DEPLOYMENT_MANAGER.deployAdminContainer(kafkaIp + ":9093", false, networkName);
         Map<String, Object> conf = new HashMap<>();
         conf.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
         conf.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, "5000");
@@ -67,16 +65,18 @@ public class RestEndpointTestIT {
         LOGGER.info("Teardown docker environment");
         kafkaClient.close();
         kafka.stop();
+        kafka = null;
         DEPLOYMENT_MANAGER.teardown();
     }
 
 
     @Test
-    void testTopicListAfterCreation(Vertx vertx, VertxTestContext testContext) throws InterruptedException {
+    void testTopicListAfterCreation(Vertx vertx, VertxTestContext testContext) throws Exception {
         kafkaClient.createTopics(Arrays.asList(
                 new NewTopic("test-topic1", 1, (short) 1),
                 new NewTopic("test-topic2", 1, (short) 1)
         ));
+        DynamicWait.waitForTopicsExists(Arrays.asList("test-topic1", "test-topic2"), kafkaClient);
         HttpClient client = vertx.createHttpClient();
         client.request(HttpMethod.GET, 8081, "localhost", "/rest/topics")
                 .compose(req -> req.send().onSuccess(response -> {

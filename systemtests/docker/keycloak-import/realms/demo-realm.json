@@ -212,7 +212,7 @@
       "consentRequired" : false,
       "fullScopeAllowed" : false,
       "attributes": {
-        "access.token.lifespan": "32140800"
+        "access.token.lifespan": "60"
       }
     }
   ]

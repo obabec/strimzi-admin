@@ -78,7 +78,7 @@ public class AdminDeploymentManager {
         }
     }
 
-    public void deployAdminContainer(String kafkaIP, Boolean oauth) throws Exception {
+    public void deployAdminContainer(String bootstrap, Boolean oauth, String networkName) throws Exception {
         ExposedPort adminPort = ExposedPort.tcp(8080);
         Ports portBind = new Ports();
         portBind.bind(adminPort, Ports.Binding.bindPort(8081));
@@ -87,9 +87,9 @@ public class AdminDeploymentManager {
                 .withExposedPorts(adminPort)
                 .withHostConfig(new HostConfig()
                         .withPortBindings(portBind)
-                        .withNetworkMode(NETWORK_NAME))
-                .withCmd("/opt/strimzi/run.sh -e KAFKA_ADMIN_BOOTSTRAP_SERVERS='" + kafkaIP
-                        + ":9092' -e KAFKA_ADMIN_OAUTH_ENABLED='" + oauth + "' -e VERTXWEB_ENVIRONMENT='dev'").exec();
+                        .withNetworkMode(networkName))
+                .withCmd("/opt/strimzi/run.sh -e KAFKA_ADMIN_BOOTSTRAP_SERVERS='" + bootstrap
+                        + "' -e KAFKA_ADMIN_OAUTH_ENABLED='" + oauth + "' -e VERTXWEB_ENVIRONMENT='dev'").exec();
         adminContId = contResp.getId();
         client.startContainerCmd(contResp.getId()).exec();
         waitForAdminReady();
@@ -159,12 +159,23 @@ public class AdminDeploymentManager {
                 .get(AdminDeploymentManager.NETWORK_NAME).getIpAddress();
     }
 
+    public String getKafkaIP(String kafkaId, String networkName) {
+        return client.inspectContainerCmd(kafkaId).exec().getNetworkSettings().getNetworks()
+                .get(networkName).getIpAddress();
+    }
+
+
     public void createNetwork() {
         networkId = client.createNetworkCmd().withName(NETWORK_NAME).exec().getId();
     }
 
     public void connectKafkaTestContainerToNetwork(String kafkaContId) {
         client.connectToNetworkCmd().withNetworkId(networkId).withContainerId(kafkaContId).exec();
+    }
+
+    public String getNetworkName(String networkId) {
+        return client.listNetworksCmd().exec().stream()
+                .filter(n -> n.getId().equals(networkId)).findFirst().get().getName();
     }
 
     public void teardown() {
